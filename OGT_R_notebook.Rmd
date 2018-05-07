@@ -1,0 +1,130 @@
+---
+title: "Siemens EM MS PMBP - Utilization Forecast"
+output:
+  word_document: default
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+#Data Exploration: OGT offer data
+
+```{r, echo = FALSE}
+# ====================== Parameters ==============
+setwd("C:/Users/A413401/6_Atos_Clients/Siemens/Siemens_EM_MS")  
+rel_fpath  <- "./data/OGT/"
+rel_fpath_output <- "./data/"
+outputfile <- "./output/data_exploration.pdf"  # writes plots and clean data frame to outputfile
+outputcsv  <- "./output/clean_4_modelling_with_R.csv"
+Read_Fresh_from_File <- T # Set to TRUE for first run to fill var rawframe
+                          # clean dat frame, set to FALSE for initial data understanding
+options(scipen=999)       # suppress exponential form of print output format
+printpdf <- FALSE         # if printout in PDF desired
+shortnames <- TRUE        # if T change to short variable names is desired
+scatterplot <- FALSE      # it T do scatterplot
+basic_tranform <- FALSE    # do basic feature transformations
+
+source(file = "Functions_data_exploration.R")
+```
+
+
+
+#2. D a t a   U n d e r s t a n d i n g
+
+structure follows CRISP-DM model
+
+##2.1 Collect Initial Data
+
+
+```{r}
+
+# R e a d   d a t a
+library(readxl)
+
+if (Read_Fresh_from_File)  {
+  print("reading file.... please wait")
+  
+  rawframe <- read_xlsx (path = paste0(rel_fpath, 'OGT Offer alle Positionen Fertigung Turkey.xlsx'), guess_max=35544)
+  warnings()
+  
+  datadesc <- read_xlsx (path = paste0(rel_fpath, 'DQA_dd_OGT_Offer.xlsx'), 
+                         sheet = "datadesc", col_types = c(
+                           "text",      # Field Name
+                           "text",      # Field Description
+                           "text",      # Marker for Clean Data Frame
+                           "text",      # Scale of Mesurement
+                           "text",      # Binary Default 0
+                           "text",      # Comment on outlier checking
+                           "text",      # comment on data exploration result
+                           "text",      # Create dammy var if "x" 
+                           "text",      # Reduce which Dummy
+                           "numeric"))  # % of na values
+  warnings() 
+}
+saveRDS(rawframe, file = paste(rel_fpath_output , "OGT_Offer.rData"))
+```
+
+
+##2.2 Describe Data   
+
+##2.3 Explore Data and Visualization
+
+
+```{r, echo = FALSE}
+#create a sub dataframe of numeric varialbes
+df_num <- as.data.frame (rawframe [ , sapply(rawframe,is.numeric)])
+
+#create a sub dataframe of non numeric varialbes
+df_not_num <- as.data.frame (rawframe [ , !sapply(rawframe,is.numeric)])
+
+#basic transformations
+if (basic_tranform) {
+  df_num$`Total Customer Price (EUR)` <- log(df_num$`Total Customer Price (EUR)`)
+  df_num$`L-/T-Price (EUR)` <- log (df_num$`L-/T-Price (EUR)`)
+  df_num$`Order Cost (EUR)` <- log (df_num$`Order Cost (EUR)`)
+  df_num$`Customer Target Price` <- log(df_num$`Order Cost (EUR)`)
+  df_num$`L-Price` <- log(df_num$`Order Cost (EUR)`)
+}
+```
+
+### 2.3.1 Boxplots and Histograms for numerical variables
+
+```{r, echo = FALSE}
+
+if (printpdf) pdf(outputfile)
+if (scatterplot) plot (df_num) # scatter plot
+plot_num (df_num, datadesc)
+if (printpdf) dev.off()    # reset device to screen plot 
+```
+
+### 2.3.2 Exploration of non numerical variables
+
+```{r}
+
+summary_non_num (df_not_num, datadesc)
+```
+
+## 2.4 Verify data quality
+
+### 2.4.1 check missing values
+
+```{r}
+
+for(i in 1:nrow(datadesc)){  
+  print(names(rawframe[i]))
+  print(paste("# na:", colSums(is.na(rawframe[i])), "  in %", colSums(is.na(rawframe[i]))/nrow(rawframe)*100))
+  datadesc$`% of na values`[i] <- colSums(is.na(rawframe[i]))/nrow(rawframe)*100
+}    
+write.csv2(datadesc$`% of na values`, file = "na_%.csv")
+```
+
+
+### 2.4.2 check collinearity
+
+
+```{r}
+
+# produce correlation matrix
+check_collinearity (df_num)
+```
+
