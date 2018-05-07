@@ -1,17 +1,37 @@
 ---
-title: "Siemens EM MS PMBP - Utilization Forecast"
+title: "Data Source Jam"
+subtitle: "Project: Siemens EM MS PMBP - Utilization Forecast"
+date: 2018-05-04  
 output:
-  word_document: default
-  pdf_document: default
   html_document:
-    df_print: paged
+    code_folding: hide
+  pdf_document: default
+  word_document: default
+  df_print: paged
 ---
 
-#Data Exploration: OGT offer data
+#Data Exploration Loop 1
+Analyzed file(s): OGT offer data
+
+Data Exploration Topics
+
+* Summary statistics (incl. mean, median, variations, ...)
+* Five numbers summary by boxplots (numerical data)
+* Distribution by bar charts and histograms
+* Categories reduction
+* Derived variables
+* Missing values and outliers
+* Subgroups, patterns and trends
+* Covariations (relationships between pairs of attributes)
+    - distribution of a continuous variable broken down by a categorical variable
+    - between categorical variables
+    - between two continuous variables
+* Correlations (numerical variables)
+
 
 ```{r, echo = FALSE}
 # ====================== Parameters ==============
-setwd("C:/Users/A413401/6_Atos_Clients/Siemens/Siemens_EM_MS")  
+#setwd("C:/Users/A413401/4_GER_People/Learning/R/Data_explore")  
 rel_fpath  <- "./data/OGT/"
 rel_fpath_output <- "./data/"
 outputfile <- "./output/data_exploration.pdf"  # writes plots and clean data frame to outputfile
@@ -26,19 +46,17 @@ basic_tranform <- FALSE    # do basic feature transformations
 
 source(file = "Functions_data_exploration.R")
 ```
-
-
-
 #2. D a t a   U n d e r s t a n d i n g
-
-structure follows CRISP-DM model
-
+  
 ##2.1 Collect Initial Data
 
+Routines:  
+Read from data sources from "rel_fpath"!  
+Read description and configuration file from "rel_fpath"!  
+Save data as RDS file format 
 
-```{r}
-
-# R e a d   d a t a
+```{r, echo = FALSE}
+# ====================== R e a d   d a t a ==============
 library(readxl)
 
 if (Read_Fresh_from_File)  {
@@ -69,7 +87,10 @@ saveRDS(rawframe, file = paste(rel_fpath_output , "OGT_Offer.rData"))
 
 ##2.3 Explore Data and Visualization
 
-
+Routines:  
+Create sub dataframe of numeric varialbes  
+Create a sub dataframe of non numeric varialbes  
+Do basic data transformation  
 ```{r, echo = FALSE}
 #create a sub dataframe of numeric varialbes
 df_num <- as.data.frame (rawframe [ , sapply(rawframe,is.numeric)])
@@ -86,6 +107,14 @@ if (basic_tranform) {
   df_num$`L-Price` <- log(df_num$`Order Cost (EUR)`)
 }
 ```
+```{r}
+print ("Dimension of dataframe of numeric variables (rows/ columns)")
+print (dim(df_num))
+print ("Dimension of dataframe of non-numeric variables (rows/ columns)")
+print (dim(df_not_num))
+```
+
+
 
 ### 2.3.1 Boxplots and Histograms for numerical variables
 
@@ -99,7 +128,7 @@ if (printpdf) dev.off()    # reset device to screen plot
 
 ### 2.3.2 Exploration of non numerical variables
 
-```{r}
+```{r, echo = FALSE}
 
 summary_non_num (df_not_num, datadesc)
 ```
@@ -115,7 +144,7 @@ for(i in 1:nrow(datadesc)){
   print(paste("# na:", colSums(is.na(rawframe[i])), "  in %", colSums(is.na(rawframe[i]))/nrow(rawframe)*100))
   datadesc$`% of na values`[i] <- colSums(is.na(rawframe[i]))/nrow(rawframe)*100
 }    
-write.csv2(datadesc$`% of na values`, file = "na_%.csv")
+#write.csv2(datadesc$`% of na values`, file = "na_%.csv")
 ```
 
 
