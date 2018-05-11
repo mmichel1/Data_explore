@@ -85,6 +85,47 @@ if (Read_Fresh_from_File)  {
 saveRDS(rawframe, file = paste(rel_fpath_output , "OGT_Offer.rData"))
 ```
 
+```{r, echo = FALSE}
+rel_fpath  <- "./data/" # wäre oben anzupassen
+# ====================== R e a d   d a t a ============== alternative
+if (Read_Fresh_from_File)  {
+  print("reading file.... ")
+  filename='OGT Offer alle Positionen Fertigung Turkey' 
+  endung ='.xlsx'
+  rawframe <- read_xlsx (path = paste0(rel_fpath, filename, endung ), guess_max=35544)
+  warnings()
+  
+  if (file.exists(path = paste0(rel_fpath, filename, '_data_control', endung)))
+    data_control_file <-  paste0(rel_fpath, filename, '_data_control', endung) else
+      data_control_file <- paste0(rel_fpath, 'data_control_template.xlsx')
+
+    datadesc <- read_xlsx (data_control_file, 
+                         sheet = "datadesc", col_types = c(
+                           "text",      # Field Name
+                           "text",      # Field Description
+                           "text",      # Marker for Clean Data Frame
+                           "text",      # Scale of Mesurement
+                           "text",      # Binary Default 0
+                           "text",      # Comment on outlier checking
+                           "text",      # comment on data exploration result
+                           "text",      # Create dummy var if "x" 
+                           "text",      # Reduce which Dummy
+                           "numeric"))  # % of na values
+  warnings() 
+  # write control file if not present
+  if (!file.exists(path = paste0(rel_fpath, filename, '_data_control', endung)))
+  {
+    datadesc[1:length(names(rawframe)), 1] <-  names(rawframe)
+    library(writexl)
+    writexl::write_xlsx(datadesc, path = paste0(rel_fpath, filename, '_data_control', endung))
+    }
+
+}
+saveRDS(rawframe, file = paste(rel_fpath_output , "OGT_Offer.rData"))
+print("...Data saved in RData file")
+```
+
+
 
 ##2.2 Describe Data   
 
@@ -106,8 +147,8 @@ if (basic_tranform) {
   df_num$`Total Customer Price (EUR)` <- log(df_num$`Total Customer Price (EUR)`)
   df_num$`L-/T-Price (EUR)` <- log (df_num$`L-/T-Price (EUR)`)
   df_num$`Order Cost (EUR)` <- log (df_num$`Order Cost (EUR)`)
-  df_num$`Customer Target Price` <- log(df_num$`Order Cost (EUR)`)
-  df_num$`L-Price` <- log(df_num$`Order Cost (EUR)`)
+  df_num$`Customer Target Price` <- log(df_num$`Order Cost (EUR)`) ### micmic  c+p error?
+  df_num$`L-Price` <- log(df_num$`Order Cost (EUR)`) ### micmic 
 }
 ```
 ```{r}
