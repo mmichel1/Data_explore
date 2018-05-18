@@ -91,9 +91,24 @@ plot_num <- function(df,desc) {
       # --- plot ---
       multiplot(p1, p2, cols=2)
       #gridextra::gridarrange (p1, p2, cols=2)
+      
+      # --- 3 most typical values ---
+      top_3 <- (sort(table(df[i]), decreasing = TRUE)) %>%
+        as.data.frame()
+      if (sum(top_3$Freq) != 0) {
+        top_3$perc <- top_3$Freq/(sum(top_3$Freq) + colSums(is.na(df[i])))*100
+      }
+      else {
+        top_3$perc <- 0
+      }
+      
       # Summaries
       print(summary(df[i]))
-      print(paste("# of na in %:", round(colSums(is.na(df[i]))/nrow(df[i])*100)), 1)
+      print(paste("# of na     :", round(colSums(is.na(df[i]))/nrow(df[i]), digits = 5)*100, "in %"))      
+      print("3 most typical values:")
+      print(paste(top_3[1:3,1], ""))
+      print(paste(top_3[1:3,2], "#"))
+      print(paste(top_3[1:3,3], "%"))
       print(paste("Variance    :", var(na.omit(df_num[,i]))))     
       print(paste("Standard dev:", sqrt(var(na.omit(df_num[,i])))))    
       var_desc <-(desc[names(df[i])==desc[,1],]) # get descriptions of the field

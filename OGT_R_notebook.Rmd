@@ -3,10 +3,10 @@ title: "Data Source Jam"
 subtitle: "Project: Siemens EM MS PMBP - Utilization Forecast"
 date: 2018-05-04  
 output:
+  word_document: default
+  pdf_document: default
   html_document:
     code_folding: hide
-  pdf_document: default
-  word_document: default
   df_print: paged
 ---
 
@@ -35,17 +35,20 @@ library(tidyverse)
 library(hexbin)
 
 # ====================== Parameters ==============
-#setwd("C:/Users/A413401/4_GER_People/Learning/R/Data_explore")  
-rel_fpath  <- "./data/OGT/"
-rel_fpath_output <- "./data/"
+rel_fpath  <- "./data/OGT/" # relative directory where original data is stored
+filename ='OGT Offer alle Positionen Fertigung Turkey' # file name of the original data 
+endung ='.xlsx'            # file extension of the original data
+
+rel_fpath_output <- "./data/OGT/" # relative directory where outputs are stored
 outputfile <- "./output/data_exploration.pdf"  # writes plots and clean data frame to outputfile
 outputcsv  <- "./output/clean_4_modelling_with_R.csv"
-Read_Fresh_from_File <- T # Set to TRUE for first run to fill var rawframe
-                          # clean dat frame, set to FALSE for initial data understanding
-options(scipen=999)       # suppress exponential form of print output format
-printpdf <- FALSE         # if printout in PDF desired
-shortnames <- TRUE        # if T change to short variable names is desired
-scatterplot <- FALSE      # it T do scatterplot
+
+Read_Fresh_from_File <- T  # Set to TRUE for first run to fill var rawframe
+                           # clean dat frame, set to FALSE for initial data understanding
+options(scipen=999)        # suppress exponential form of print output format
+printpdf <- FALSE          # if printout in PDF desired
+shortnames <- TRUE         # if T change to short variable names is desired
+scatterplot <- FALSE       # it T do scatterplot
 basic_tranform <- FALSE    # do basic feature transformations
 
 # ====================== Sources ===============
@@ -61,40 +64,17 @@ Read description and configuration file from "rel_fpath"!
 Save data as RDS file format 
 
 ```{r, echo = FALSE}
-# ====================== R e a d   d a t a ==============
-if (Read_Fresh_from_File)  {
-  print("reading file.... please wait")
-  
-  rawframe <- read_xlsx (path = paste0(rel_fpath, 'OGT Offer alle Positionen Fertigung Turkey.xlsx'), guess_max=35544)
-  warnings()
-  
-  datadesc <- read_xlsx (path = paste0(rel_fpath, 'DQA_dd_OGT_Offer.xlsx'), 
-                         sheet = "datadesc", col_types = c(
-                           "text",      # Field Name
-                           "text",      # Field Description
-                           "text",      # Marker for Clean Data Frame
-                           "text",      # Scale of Mesurement
-                           "text",      # Binary Default 0
-                           "text",      # Comment on outlier checking
-                           "text",      # comment on data exploration result
-                           "text",      # Create dummy var if "x" 
-                           "text",      # Reduce which Dummy
-                           "numeric"))  # % of na values
-  warnings() 
-}
-saveRDS(rawframe, file = paste(rel_fpath_output , "OGT_Offer.rData"))
-```
-
-```{r, echo = FALSE}
-rel_fpath  <- "./data/" # wäre oben anzupassen
 # ====================== R e a d   d a t a ============== alternative
 if (Read_Fresh_from_File)  {
   print("reading file.... ")
-  filename='OGT Offer alle Positionen Fertigung Turkey' 
-  endung ='.xlsx'
-  rawframe <- read_xlsx (path = paste0(rel_fpath, filename, endung ), guess_max=35544)
-  warnings()
-  
+  # --- read excel ----
+  if (endung == ".xlsx")   {
+     rawframe <- read_xlsx (path = paste0(rel_fpath, filename, endung ), guess_max=100000)
+     warnings()
+  #--- read other formats ---
+  # to be added
+  }
+  #--- create / read data control file ---
   if (file.exists(path = paste0(rel_fpath, filename, '_data_control', endung)))
     data_control_file <-  paste0(rel_fpath, filename, '_data_control', endung) else
       data_control_file <- paste0(rel_fpath, 'data_control_template.xlsx')
@@ -121,7 +101,7 @@ if (Read_Fresh_from_File)  {
     }
 
 }
-saveRDS(rawframe, file = paste(rel_fpath_output , "OGT_Offer.rData"))
+saveRDS(rawframe, file = paste(rel_fpath_output , filename, ".rData"))
 print("...Data saved in RData file")
 ```
 
@@ -158,6 +138,8 @@ print (paste("Dimension of dataframe of not-numeric variables (columns)", dim(df
 
 ### 2.3.1 Boxplots and Histograms of all numerical variables
 
+This section shows boxplots, histograms and the summary statistics of all numerical variablesas well as related comments and descriptions which are extracted from the data control file.
+
 ```{r, echo = FALSE}
 
 if (printpdf) pdf(outputfile)
@@ -166,29 +148,68 @@ plot_num (df_num, datadesc)
 if (printpdf) dev.off()    # reset device to screen plot 
 ```
 
-Explore variable "Item"
-
-Peaks at 10x iterm
-
-```{r}
+Explore a single numerical variable, here "Item" and detect patterns:
+* peaks at 10x iterm
+* counts
+* 3 most common values
+```{r, echo = FALSE}
 # Limitiation of counts on y axis as well as outliers on x axis
 ggplot(data = df_num) +
   geom_histogram(mapping = aes(x = df_num$Item), binwidth = 1, na.rm = TRUE) +
   coord_cartesian(xlim = c(0, 400), ylim = c(0, 100)) +
   labs(x = names(df_num$item))
 
-# use group by and summarize allways together
+# use "group by"" and "summarize" allways together
 c_items <- df_num %>%
   group_by(Item) %>%
   summarise(count = n()) %>%
   print()
-  
+#print ("3 most common value")
+c_items <- (sort(table(df_num$Item), decreasing = TRUE)) %>%
+     as.data.frame()
+c_items$perc <- c_items$Freq/sum(c_items$Freq)*100
+print(c_items[1:3,])
+
 ```
 
-```{r}
-ggplot(data = df_num) +
-        geom_boxplot(mapping = aes(x = df_not_num$Status, y = df_num$`Probability of Order`) , na.rm = TRUE) +
-        labs(x = names(df_num$`Probability of Order`), y = "")
+Explore a single numerical variable, here "Probability of Order", dependent on categorical variable, here "Status"  
+Order it by median of "Probaility of Order"
+
+Findings: 
+...
+
+Probelm bei Facetierung von Histogrammen: Countwerte inkonsistent!!!
+Evlt. Abhilfe siehe https://stackoverflow.com/questions/17271968/different-breaks-per-facet-in-ggplot2-histogram
+ 
+```{r, echo = FALSE}
+# rawframe used as varialbes from df_num and df_not_num requested
+ggplot(data = rawframe) +
+        geom_boxplot(mapping = aes(x = reorder(rawframe$Status, rawframe$`Probability of Order`, FUN = median),
+                                   y = rawframe$`Probability of Order`), na.rm = TRUE) + 
+        labs(x = names(rawframe$`Probability of Order`), y = "")
+
+ggplot(data = rawframe, mapping = aes(x = rawframe$`Probability of Order`)) +
+         geom_freqpoly(mapping = aes(color = Status))
+
+ggplot(data = rawframe, mapping = aes(x = rawframe$`Probability of Order`, y = ..density..)) +
+         geom_freqpoly(mapping = aes(color = Status))
+# subset
+t <- filter (rawframe, rawframe$Status == "Offer won")
+ggplot(data = t, mapping = aes(x = t$`Probability of Order`)) +
+         geom_freqpoly(mapping = aes(color = Status))
+
+ggplot(data = rawframe, mapping = aes(x = rawframe$`Probability of Order`)) +
+         geom_histogram(binwidth = 1) +
+         facet_wrap(~ Status, ncol = 2)
+# subset
+ggplot(data = t, mapping = aes(x = t$`Probability of Order`)) +
+         geom_histogram(binwidth = 1) +
+         facet_wrap(~ Status, ncol = 2)
+
+ggplot(data = rawframe, mapping = aes(x = rawframe$`Probability of Order`, y = ..density..)) +
+         geom_histogram(binwidth = 1) +
+         facet_wrap(~ Status, ncol = 2)
+
 ```
 
 ### 2.3.2 Exploration of all non numerical variables
