@@ -35,11 +35,11 @@ library(tidyverse)
 library(hexbin)
 
 # ====================== Parameters ==============
-rel_fpath  <- "./data/OGT/" # relative directory where original data is stored
+rel_fpath  <- "./data/"    # relative directory where original data is stored
 filename ='OGT Offer alle Positionen Fertigung Turkey' # file name of the original data 
 endung ='.xlsx'            # file extension of the original data
 
-rel_fpath_output <- "./data/OGT/" # relative directory where outputs are stored
+rel_fpath_output <- "./data/" # relative directory where outputs are stored
 outputfile <- "./output/data_exploration.pdf"  # writes plots and clean data frame to outputfile
 outputcsv  <- "./output/clean_4_modelling_with_R.csv"
 
@@ -65,6 +65,7 @@ Save data as RDS file format
 
 ```{r, echo = FALSE}
 # ====================== R e a d   d a t a ============== alternative
+library(writexl)
 if (Read_Fresh_from_File)  {
   print("reading file.... ")
   # --- read excel ----
@@ -79,8 +80,8 @@ if (Read_Fresh_from_File)  {
     data_control_file <-  paste0(rel_fpath, filename, '_data_control', endung) else
       data_control_file <- paste0(rel_fpath, 'data_control_template.xlsx')
 
-    datadesc <- read_xlsx (data_control_file, 
-                         sheet = "datadesc", col_types = c(
+  datadesc <- read_xlsx (data_control_file, # sheet = "datadesc",    once control file written sheet name disappears unfortunately 
+                         col_types = c(
                            "text",      # Field Name
                            "text",      # Field Description
                            "text",      # Marker for Clean Data Frame
@@ -96,7 +97,6 @@ if (Read_Fresh_from_File)  {
   if (!file.exists(path = paste0(rel_fpath, filename, '_data_control', endung)))
   {
     datadesc[1:length(names(rawframe)), 1] <-  names(rawframe)
-    library(writexl)
     writexl::write_xlsx(datadesc, path = paste0(rel_fpath, filename, '_data_control', endung))
     }
 
@@ -122,7 +122,7 @@ df_num <- as.data.frame (rawframe [ , sapply(rawframe,is.numeric)])
 #create a sub dataframe of non numeric varialbes
 df_not_num <- as.data.frame (rawframe [ , !sapply(rawframe,is.numeric)])
 
-#basic transformations
+#basic transformations - datenspezifisch!
 if (basic_tranform) {
   df_num$`Total Customer Price (EUR)` <- log(df_num$`Total Customer Price (EUR)`)
   df_num$`L-/T-Price (EUR)` <- log (df_num$`L-/T-Price (EUR)`)
@@ -131,6 +131,7 @@ if (basic_tranform) {
   df_num$`L-Price` <- log(df_num$`Order Cost (EUR)`) ### micmic 
 }
 ```
+
 ```{r}
 print (paste("Dimension of dataframe of numeric variables (columns)", dim(df_num)[2]))
 print (paste("Dimension of dataframe of not-numeric variables (columns)", dim(df_not_num)[2]))
@@ -138,7 +139,7 @@ print (paste("Dimension of dataframe of not-numeric variables (columns)", dim(df
 
 ### 2.3.1 Boxplots and Histograms of all numerical variables
 
-This section shows boxplots, histograms and the summary statistics of all numerical variablesas well as related comments and descriptions which are extracted from the data control file.
+This section shows boxplots, histograms and the summary statistics of all numerical variables as well as related comments and descriptions which are extracted from the data control file.
 
 ```{r, echo = FALSE}
 
@@ -152,18 +153,20 @@ Explore a single numerical variable, here "Item" and detect patterns:
 * peaks at 10x iterm
 * counts
 * 3 most common values
+data specific!!
 ```{r, echo = FALSE}
 # Limitiation of counts on y axis as well as outliers on x axis
 ggplot(data = df_num) +
   geom_histogram(mapping = aes(x = df_num$Item), binwidth = 1, na.rm = TRUE) +
   coord_cartesian(xlim = c(0, 400), ylim = c(0, 100)) +
-  labs(x = names(df_num$item))
+  labs(x = names(df_num$Item)) # names(df_num$Item) ist NULL!!
 
 # use "group by"" and "summarize" allways together
 c_items <- df_num %>%
   group_by(Item) %>%
   summarise(count = n()) %>%
   print()
+
 #print ("3 most common value")
 c_items <- (sort(table(df_num$Item), decreasing = TRUE)) %>%
      as.data.frame()
@@ -178,8 +181,10 @@ Order it by median of "Probaility of Order"
 Findings: 
 ...
 
-Probelm bei Facetierung von Histogrammen: Countwerte inkonsistent!!!
+Problem bei Facetierung von Histogrammen: Countwerte inkonsistent!!!
 Evlt. Abhilfe siehe https://stackoverflow.com/questions/17271968/different-breaks-per-facet-in-ggplot2-histogram
+Beispiel wo es funktioniert - ohne $:
+https://drsimonj.svbtle.com/plotting-background-data-for-groups-with-ggplot2
  
 ```{r, echo = FALSE}
 # rawframe used as varialbes from df_num and df_not_num requested
@@ -198,15 +203,15 @@ t <- filter (rawframe, rawframe$Status == "Offer won")
 ggplot(data = t, mapping = aes(x = t$`Probability of Order`)) +
          geom_freqpoly(mapping = aes(color = Status))
 
-ggplot(data = rawframe, mapping = aes(x = rawframe$`Probability of Order`)) +
+ggplot(data = rawframe, mapping = aes(x = `Probability of Order`)) +  # facet_wrap funktioniert nur wenn kein 'rawframe$' davor
          geom_histogram(binwidth = 1) +
-         facet_wrap(~ Status, ncol = 2)
+         facet_wrap(~ Status, ncol = 2, scales = "free_y")
 # subset
 ggplot(data = t, mapping = aes(x = t$`Probability of Order`)) +
          geom_histogram(binwidth = 1) +
          facet_wrap(~ Status, ncol = 2)
 
-ggplot(data = rawframe, mapping = aes(x = rawframe$`Probability of Order`, y = ..density..)) +
+ggplot(data = rawframe, mapping = aes(x = `Probability of Order`, y = ..density..)) +
          geom_histogram(binwidth = 1) +
          facet_wrap(~ Status, ncol = 2)
 
@@ -226,11 +231,15 @@ summary_non_num (df_not_num, datadesc)
 ```{r}
 
 for(i in 1:nrow(datadesc)){  
-  print(names(rawframe[i]))
-  print(paste("# na:", colSums(is.na(rawframe[i])), "  in %", colSums(is.na(rawframe[i]))/nrow(rawframe)*100))
-  datadesc$`% of na values`[i] <- colSums(is.na(rawframe[i]))/nrow(rawframe)*100
+  #print()
+  print(paste(names(rawframe[i]), "  # of NA:", colSums(is.na(rawframe[i])), 
+              "  in %", round(colSums(is.na(rawframe[i])/nrow(rawframe)), 3)*100))
+  datadesc$`% of na values`[i] <- round(colSums(is.na(rawframe[i]))/nrow(rawframe), 3)*100
 }    
 #write.csv2(datadesc$`% of na values`, file = "na_%.csv")
+writexl::write_xlsx(datadesc, path = paste0(rel_fpath, filename, '_data_control', endung))
+# todo grafik, sortieren,..
+
 ```
 
 
@@ -241,5 +250,108 @@ for(i in 1:nrow(datadesc)){
 
 # produce correlation matrix
 check_collinearity (df_num)
+# todo - na gf. abhängig von param ersetzen
+
+```
+
+## 3.1 Transformation of variables
+
+```{r}
+df_clean <- transformation(rawframe, datadesc)
+
+```
+
+## 3.2 Reduction of variables
+
+```{r}
+# replace NA with '' otherwise comparison with strings as below won't work
+datadesc$`Clean Data Frame`[is.na(datadesc$`Clean Data Frame`)] <- ''
+
+# exclude not relevant variables according to Data Description entry in column Clean Data Frame
+df_clean <- df_clean[ ,datadesc$`Clean Data Frame`!="exclude"]  # todo check: dann müsste datadesc auch angepasst werden?!?!?!
+
+#create a sub dataframe of numeric varialbes
+df_num <- as.data.frame (df_clean [ , sapply(df_clean,is.numeric)])
+#create a sub dataframe of non numeric varialbes
+df_not_num <- as.data.frame (df_clean [ , !sapply(df_clean,is.numeric)])
+
+```
+
+```{r}
+# =================================================
+# again perform data exploration as above in chapter 2
+                           # Boxplots and Histograms for numerical variables
+if (printpdf) pdf(outputfile)
+if (scatterplot) plot (df_num) # scatter plot
+plot_num (df_num, datadesc)
+if (printpdf) dev.off()    # reset device to screen plot 
+
+                           # Exploartion of non numerical variables
+summary_non_num (df_not_num, datadesc)
+                           # check missing values
+#for(i in 1:ncol(df_clean)){  
+#  print(colSums(is.na(df_clean[i])))
+#}    
+```
+
+```{r}
+print("...save clean data frame")
+if (shortnames==T) outputcsv <- "./output/clean_4_modeling_with_factors.csv"
+#if (shortnames==T) names(df_clean) <- c("FinStatus", "FinOE",
+#                                   "FinDelStart", "ServType", 
+#                                    "TopAccont", "DelStart", "Offer", "BillType", "Campaign",
+#                                    "OppType", "Market", "Prio", "FrameAgreement", "SW_Platform",
+#                                    "Probability", "ProjMargin", "OE", "BidMgrInPurs", "Frequ_Sales",
+#                                    "SolMgrInPurs", "DelMgrInPurs", "ChangeRec", "Teamfill",
+#                                    "Time_bef_Purs", "BidBudPerc", "TCV_SD_bef_Purs")
+write.table(df_clean,       # write resulting data into CSV file with tabstops
+            file=outputcsv,
+            sep=",", quote=FALSE, row.names=FALSE, dec=".") 
+#           sep="\t", quote=FALSE, row.names=FALSE, dec=",") 
+```
+
+
+## 3.3 Construct Data
+
+```{r}
+# replace NA with '' otherwise comparison with strings as below won't work
+#datadesc$`Dummy`[is.na(datadesc$`Dummy`)] <- ''
+#datadesc$`Reduce_which_Dummy`[is.na(datadesc$`Reduce_which_Dummy`)] <- ''
+
+df_clean <- create_dummy(df_clean, datadesc)
+
+```
+
+```{r}
+# =================================================
+# again perform data exploration as above in chapter 2
+# Boxplots and Histograms for numerical variables
+df_num <- as.data.frame (df_clean [ , sapply(df_clean,is.numeric)])
+df_not_num <- as.data.frame (df_clean [ , !sapply(df_clean,is.numeric)])
+
+if (printpdf) pdf(outputfile)
+if (scatterplot) plot (df_num) # scatter plot
+plot_num (df_num, datadesc)
+if (printpdf) dev.off()     # reset device to screen plot 
+
+# check missing values
+#for(i in 1:ncol(df_clean)){  
+#  print(colSums(is.na(df_clean[i])))
+#}    
+# check collinearity
+par(mfrow=c(1,1), mai=c(0.5,0.5,0.5,0.5), pty="m", cex=0.7)
+check_collinearity (df_num)
+```
+
+```{r}
+# =================================================
+# Save clean data frame with dummy variables
+# =================================================
+print("...save clean data frame")
+if (shortnames==T) outputcsv <- "./output/clean_4_modeling_with_dummies.csv"
+write.table(df_clean,       # write resulting data into CSV file with tabstops
+            file=outputcsv, 
+            sep=",", quote=FALSE, row.names=FALSE, dec=".") 
+#           sep="\t", quote=FALSE, row.names=FALSE, dec=",") 
 ```
 

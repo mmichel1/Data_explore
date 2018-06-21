@@ -7,6 +7,29 @@
 #library(tidyverse)
 #library(hexbin)
 
+library (dplyr)
+library (rlang)
+
+# ====================== Function ================
+read_datadesc <- function(data_control_file_name) {
+  desc <-read_xlsx (data_control_file_name, # sheet = "datadesc",    once control file written sheet name disappears unfortunately 
+                       col_types = c(
+                         "text",      # Field Name
+                         "text",      # Field Description
+                         "text",      # Marker for Clean Data Frame
+                         "text",      # Scale of Mesurement
+                         "text",      # Binary Default 0
+                         "text",      # Comment on outlier checking
+                         "text",      # comment on data exploration result
+                         "text",      # Create dummy var if "x" 
+                         "text",      # Reduce which Dummy
+                         "numeric"))  # % of na values
+  warnings() 
+  desc[is.na(desc)] <- ''
+  return(desc)
+}
+
+
 # ====================== Function ================
 # Multiple plot function
 #
@@ -64,7 +87,8 @@ plot_num <- function(df,desc) {
     if (all (is.na(df_num[,i])) == TRUE) {
       print("--------------------------------------------------------------------------------------------")
       print(paste("Field name:", names(df[i])), col="green")
-      print(paste("Comment   : all values na ",var_desc$Comment.Data.Expl))
+      print(paste("Comment   : all values na ",var_desc$Comment.Data.Expl)) # zu dem Zeitpunkt ist var_desc undefiniert?? 
+      # koennte man aus der for schleife ziehen?
     }    
     else {
       # --- Boxplots ---
@@ -111,7 +135,7 @@ plot_num <- function(df,desc) {
       print(paste(top_3[1:3,3], "%"))
       print(paste("Variance    :", var(na.omit(df_num[,i]))))     
       print(paste("Standard dev:", sqrt(var(na.omit(df_num[,i])))))    
-      var_desc <-(desc[names(df[i])==desc[,1],]) # get descriptions of the field
+      var_desc <-(desc[names(df[i])==desc[ ,1], ]) # get descriptions of the field
       print(paste("Description :", var_desc[2]))  # field description
       print(paste("Comment     :", var_desc$Comment.Data.Expl)) # field comment
     }
@@ -185,5 +209,152 @@ check_collinearity <- function(df) {
                   round(cor_m[cor_index[i]], digits = 2)))
     }
   }
+}
+
+
+# =========================================================================== 
+# 3. D a t a   p r e p a r a t i o n
+# =========================================================================== 
+
+# ====================== Function ================
+# function returns a number which specifies frequent used facotrs beyond a common threshold
+# factor needs to be ordered by frequency
+fac_max <- function (fac, th){
+  fac_acc <- 0
+  for (i in 1:length(fac)) {
+    fac_acc <- fac_acc + fac[i]
+    if (fac_acc/sum(fac) > th) return (i)
+  }
+}
+
+# =================================================
+# 3.1 Transformation of variables
+# =================================================
+transformation <- function(df, datadesc) {
+  for(i in 1:ncol(df)) {
+    if (!is.na(datadesc$`Clean Data Frame`[i])) {
+      print (paste("... transforming", names(df[i])))
+      
+      # transform right-skewed data to logarithmic scale
+      if (datadesc$`Clean Data Frame`[i]=="log") {
+        # mit dplyer ziemlicher Aufwand, weil dynamische Spaltenzuweisung notwendig - Paket rlang! 
+        # dann kann man mit doppel Ausrufezeichen die Spaltennamenvariablen referenzieren
+        # https://stackoverflow.com/questions/47440812/dplyr-mutate-dynamically-named-variables-using-other-dynamically-named-variabl
+        col_log_name <- rlang::sym(paste0(names(df[i]), '_log'))
+        col_orig_name <- rlang::sym(names(df[i]))
+        df <- df %>% mutate(!!col_log_name := round(log(!!col_orig_name), 2)) %>% as.data.frame() %>% mutate(!!col_orig_name := NULL)
+        #      df[i] <- log(df[i])      nicht wirklich einfacher :-(
+        # immer noch kein infinite handling
+        df[i] <- replace(unlist(df[i]), is.infinite(unlist(df[i])), 0)  #replacement of infinite values NA by 0
+      }
+      
+      # transform into binary (0,1) variable
+      if (datadesc$`Clean Data Frame`[i]=="binary") {
+        var_desc <- datadesc[names(df[i])==datadesc[,1],] # get descriptions of the field
+        var_default_0 <- as.character(var_desc[4])              # get default 0 value for the variable
+        df[i] <- replace(df[i],df[i] != var_default_0,"1_yes")
+        df[i] <- replace(df[i],df[i] == var_default_0,"0_no")
+      }
+      
+      # binning of a variable
+      if (datadesc$`Clean Data Frame`[i]=="binning") {
+        map_pos <- which(names(df[i])==names(datamap[1,]), TRUE) # column index mapping var
+        map_table <- datamap[1:which(datamap[,map_pos]=="other#"),map_pos:(map_pos+1)]   # load mapping table     
+        l <- as.vector(unlist(map_table[2:(nrow(map_table)-1),1])) 
+        b <- as.vector(unlist(map_table[1:(nrow(map_table)-1),2]))  
+        df[i] <- as.character(cut(unlist(df[i]), breaks=b, labels=l))
+      }  
+      
+      # reduce categories
+      if (datadesc$`Clean Data Frame`[i]=="reduce") { 
+        fac <- summary(factor(as.factor (unlist(df[i]))))
+        fac <- fac[order(fac, decreasing = TRUE)]
+        for (ii in 1:nrow(df)) {
+          df[ii,i] <- replace(df[ii,i], 
+                              !df[ii,i] %in% names(fac[1:fac_max(fac,0.95)]),
+                              "other") # threshold 90%
+        }  
+      }                      
+      
+      # mapping of values to viewer # of categories
+      if ((datadesc$`Clean Data Frame`[i]=="map") | (datadesc$`Clean Data Frame`[i]=="map_exact") ) { 
+        map_pos <- which(names(df[i])==names(datamap[1,]), TRUE) # column index mapping var
+        map_table <- datamap[1:which(datamap[,map_pos]=="other#"),map_pos:(map_pos+1)]   # load mapping table
+        var_temp <- df[i]
+        df[i] <- (rep(map_table[nrow(map_table),2],nrow(df)) )# fill var. with "other" value
+        # therein mapping of character string
+        if (datadesc$`Clean Data Frame`[i]=="map") {
+          for (ii in 1:(nrow(map_table)-1)){
+            map_idx <- grepl(map_table[ii,1], unlist(var_temp))     # create lookup index
+            df[i] <- replace(unlist(df[i]), map_idx, as.character( map_table[ii,2])) # replace with mapping value
+          }
+        }
+        else {                 # exact mapping of character string
+          for (ii in 1:(nrow(map_table)-1)){
+            df[var_temp==as.character(map_table[ii,1]),i] <- map_table[ii,2]
+          }
+        }
+      }
+      
+    }
+  }
+  return (df)
+}  
+
+
+# =================================================
+# 3.3 Construct Data
+# =================================================
+
+create_dummy <- function(df, datadesc) {
+  
+  # =================================================
+  # 3.3.1 Create dummy varialbes
+  # =================================================
+  #open pdf output file and
+  ## examine one-hot-encoder representation via comparison 
+  #show top rows of concatenated one-hot-encoder and its original 
+  #head(cbind(new_x_df, x))
+  #   R E P L A C E   specify variables to be transformed to dummy varialbes in "change_var" vector
+  change_var <- unlist(datadesc[datadesc$Dummy =="x",1])
+  change_var <- change_var[!is.na(change_var)]
+  if (length(change_var)) {
+    for (i in 1:length(change_var)) {
+      print (paste("... create dummies", change_var[i]))
+      
+      x <- unlist(df[,change_var[i]])
+      uniq_levels <- unique(x) 
+      n_obs       <- length(x) 
+      n_levels    <- length(uniq_levels) 
+      
+      # create container to store dummy variables 
+      new_x_df <- data.frame(matrix(0, nrow=n_obs, ncol=n_levels)) 
+      # loop through each level and detect appearance of a level 
+      for(ii in 1:length(uniq_levels)) { 
+        # the level for examination 
+        the_level <- uniq_levels[ii] 
+        one_idx   <- x == the_level 
+        new_x_df[one_idx, ii] <- 1 
+      } 
+      names (new_x_df) <- as.character (uniq_levels)
+      names (new_x_df) <- paste (names (new_x_df), change_var[i])
+      # concat dataframes
+      df <- data.frame (c(df, (new_x_df)))
+    }
+    
+    # =================================================
+    # 3.3.2 Delete variables and rename variables by short names
+    # =================================================
+    # delete original varialbes of dummy 
+    df <- df [ , !(names(df) %in% change_var)]
+    # delete one for each dummy 
+    change_var <- unlist(datadesc$Reduce_which_Dummy)
+    change_var <- change_var[!is.na(change_var)]
+    df <- df [ , !(names(df) %in% change_var)]
+    # rename varialbes by short names - gibts bis dato nicht
+    # if (shortnames==T) names(df) <- unlist(datanames$Short_name)
+
+  }
+  return (df)
 }
 
