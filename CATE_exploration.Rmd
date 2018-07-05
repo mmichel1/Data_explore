@@ -1,7 +1,7 @@
 ---
 title: "Data Source Jam"
-subtitle: "Project: Siemens EM MS PMBP - Utilization Forecast"
-date: 2018-05-04  
+subtitle: "Project: CATE"
+date: 2018-07-05  
 output:
   word_document: default
   pdf_document: default
@@ -10,9 +10,7 @@ output:
   df_print: paged
 ---
 
-#Data Exploration Loop 1
-Analyzed file(s): OGT offer data
-
+# Data Exploration Loop 1
 Data Exploration Topics
 
 * Summary statistics (incl. mean, median, variations, ...)
