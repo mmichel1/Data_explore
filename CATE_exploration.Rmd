@@ -1,0 +1,335 @@
+---
+title: "Data Source Jam"
+subtitle: "Project: Siemens EM MS PMBP - Utilization Forecast"
+date: 2018-05-04  
+output:
+  word_document: default
+  pdf_document: default
+  html_document:
+    code_folding: hide
+  df_print: paged
+---
+
+#Data Exploration Loop 1
+Analyzed file(s): OGT offer data
+
+Data Exploration Topics
+
+* Summary statistics (incl. mean, median, variations, ...)
+* Five numbers summary by boxplots (numerical data)
+* Distribution by bar charts and histograms
+* Categories reduction
+* Derived variables
+* Missing values and outliers
+* Subgroups, patterns and trends
+* Covariations (relationships between pairs of attributes)
+    - distribution of a continuous variable broken down by a categorical variable
+    - between categorical variables
+    - between two continuous variables
+* Correlations (numerical variables)
+
+```{r, echo = FALSE}
+# ====================== Libraries ================
+library(readxl)
+library(tidyverse)
+library(hexbin)
+# ====================== Parameters ==============
+rel_fpath  <- "./data/"    # relative directory where original data is stored
+filename ='A5E01283425_30062016_25072016' # file name of the original data 
+endung ='.csv'            # file extension of the original data
+
+rel_fpath_output <- "./data/" # relative directory where outputs are stored
+outputfile <- "./output/data_exploration.pdf"  # writes plots and clean data frame to outputfile
+outputcsv  <- "./output/clean_4_modelling_with_R.csv"
+
+Read_Fresh_from_File <- T  # Set to TRUE for first run to fill var rawframe
+                           # clean dat frame, set to FALSE for initial data understanding
+options(scipen=999)        # suppress exponential form of print output format
+printpdf <- FALSE          # if printout in PDF desired
+shortnames <- TRUE         # if T change to short variable names is desired
+scatterplot <- FALSE       # it T do scatterplot
+basic_tranform <- FALSE    # do basic feature transformations
+
+# ====================== Sources ===============
+source(file = "Functions_data_exploration.R")
+```
+#2. D a t a   U n d e r s t a n d i n g
+  
+##2.1 Collect Initial Data
+
+Routines:  
+Read from data sources from "rel_fpath"!  
+Read description and configuration file from "rel_fpath"!  
+Save data as RDS file format 
+
+```{r, echo = FALSE}
+# ====================== R e a d   d a t a ============== alternative
+library(writexl)
+if (Read_Fresh_from_File)  {
+  print("reading file.... ")
+  # --- read excel ----
+  if (endung == ".xlsx")   {
+     rawframe <- read_xlsx (path = paste0(rel_fpath, filename, endung ), guess_max=100000)
+     warnings()
+  } else
+  {  #--- read other formats ---
+  library(readr)
+  rawframe <- read_delim(file = paste0(rel_fpath, filename, endung), 
+    ";", escape_double = FALSE, col_types = cols(DTDATUM = col_datetime(format = "%d.%m.%Y %H:%M:%S"), 
+        DTDATUM_1 = col_datetime(format = "%d.%m.%Y %H:%M:%S"), 
+        DTINSERT = col_datetime(format = "%d.%m.%Y %H:%M:%S"), 
+        DTU = col_double(), SERGEBNIS = col_factor(levels = c("FAIL", 
+            "PASS"))), locale = locale(decimal_mark = ","), 
+    trim_ws = TRUE)
+  }
+
+  #--- create / read data control file ---
+  if (file.exists(path = paste0(rel_fpath, filename, '_data_control.xlsx')))
+    data_control_file <-  paste0(rel_fpath, filename, '_data_control.xlsx') else
+      data_control_file <- paste0(rel_fpath, 'data_control_template.xlsx')
+  datadesc <- read_datadesc(data_control_file)
+  
+  # write control file if not present
+  if (!file.exists(path = paste0(rel_fpath, filename, '_data_control.xlsx')))
+  {
+    datadesc[1:length(names(rawframe)), 1] <-  names(rawframe)
+    writexl::write_xlsx(datadesc, path = paste0(rel_fpath, filename, '_data_control.xlsx'))
+  }
+  
+  # exclude not relevant variables according to Data Description entry in column Clean Data Frame
+  rawframe <- rawframe[ ,datadesc$`Clean Data Frame`!="exclude"]  
+
+  saveRDS(rawframe, file = paste(rel_fpath_output , filename, ".rData"))
+  print("...Data saved in RData file")
+} else # Read_Fresh_from_File gleich FALSE
+{  
+  rawframe <- readRDS(file = paste(rel_fpath_output , filename, ".rData"))
+}  
+```
+
+##2.2 Describe Data   
+
+##2.3 Explore Data and Visualization
+
+Routines:  
+Create sub dataframe of numeric varialbes  
+Create a sub dataframe of non numeric varialbes  
+Do basic data transformation  
+```{r, echo = FALSE}
+#create a sub dataframe of numeric varialbes
+df_num <- as.data.frame (rawframe [ , sapply(rawframe,is.numeric)])
+
+#create a sub dataframe of non numeric varialbes
+df_not_num <- as.data.frame (rawframe [ , !sapply(rawframe,is.numeric)])
+
+#basic transformations - datenspezifisch!
+if (basic_tranform) {
+  df_num$`Total Customer Price (EUR)` <- log(df_num$`Total Customer Price (EUR)`)
+  df_num$`L-/T-Price (EUR)` <- log (df_num$`L-/T-Price (EUR)`)
+  df_num$`Order Cost (EUR)` <- log (df_num$`Order Cost (EUR)`)
+  df_num$`Customer Target Price` <- log(df_num$`Order Cost (EUR)`) ### micmic  c+p error?
+  df_num$`L-Price` <- log(df_num$`Order Cost (EUR)`) ### micmic 
+}
+```
+
+```{r}
+print (paste("Dimension of dataframe of numeric variables (columns)", dim(df_num)[2]))
+print (paste("Dimension of dataframe of not-numeric variables (columns)", dim(df_not_num)[2]))
+```
+
+### 2.3.1 Boxplots and Histograms of all numerical variables
+
+This section shows boxplots, histograms and the summary statistics of all numerical variables as well as related comments and descriptions which are extracted from the data control file.
+
+```{r, echo = FALSE}
+
+if (printpdf) pdf(outputfile)
+if (scatterplot) plot (df_num) # scatter plot
+plot_num (df_num, datadesc)
+if (printpdf) dev.off()    # reset device to screen plot 
+```
+
+Explore a single numerical variable, here "Item" and detect patterns:
+* peaks at 10x iterm
+* counts
+* 3 most common values
+data specific!!
+```{r, echo = FALSE}
+# Limitiation of counts on y axis as well as outliers on x axis
+ggplot(data = df_num) +
+  geom_histogram(mapping = aes(x = df_num$Item), binwidth = 1, na.rm = TRUE) +
+  coord_cartesian(xlim = c(0, 400), ylim = c(0, 100)) +
+  labs(x = names(df_num$Item)) # names(df_num$Item) ist NULL!!
+
+# use "group by"" and "summarize" allways together
+c_items <- df_num %>%
+  group_by(Item) %>%
+  summarise(count = n()) %>%
+  print()
+
+#print ("3 most common value")
+c_items <- (sort(table(df_num$Item), decreasing = TRUE)) %>%
+     as.data.frame()
+c_items$perc <- c_items$Freq/sum(c_items$Freq)*100
+print(c_items[1:3,])
+
+```
+
+Explore a single numerical variable, here "Probability of Order", dependent on categorical variable, here "Status"  
+Order it by median of "Probaility of Order"
+
+Findings: 
+...
+
+Problem bei Facetierung von Histogrammen: Countwerte dann inkonsistent wenn Spalte über ..$.. adressiert wird!
+https://drsimonj.svbtle.com/plotting-background-data-for-groups-with-ggplot2
+ 
+```{r, echo = FALSE}
+# rawframe used as varialbes from df_num and df_not_num requested
+ggplot(data = rawframe) +
+        geom_boxplot(mapping = aes(x = reorder(rawframe$Status, rawframe$`Probability of Order`, FUN = median),
+                                   y = rawframe$`Probability of Order`), na.rm = TRUE) + 
+        labs(x = names(rawframe$`Probability of Order`), y = "")
+
+ggplot(data = rawframe, mapping = aes(x = rawframe$`Probability of Order`)) +
+         geom_freqpoly(mapping = aes(color = Status))
+ggplot(data = rawframe, mapping = aes(x = rawframe$`Probability of Order`, y = ..density..)) +
+         geom_freqpoly(mapping = aes(color = Status))
+# subset
+t <- filter (rawframe, rawframe$Status == "Offer won")
+ggplot(data = t, mapping = aes(x = t$`Probability of Order`)) +
+         geom_freqpoly(mapping = aes(color = Status))
+ggplot(data = t, mapping = aes(x = t$`Probability of Order`)) +
+         geom_histogram(binwidth = 1) +
+         facet_wrap(~ Status, ncol = 2)
+
+ggplot(data = rawframe, mapping = aes(x = `Probability of Order`)) +  # facet_wrap funktioniert nur wenn kein 'rawframe$' davor
+         geom_histogram(binwidth = 1) +
+         facet_wrap(~ Status, ncol = 2, scales = "free_y")
+ggplot(data = rawframe, mapping = aes(x = `Probability of Order`, y = ..density..)) +
+         geom_histogram(binwidth = 1) +
+         facet_wrap(~ Status, ncol = 2)
+
+```
+
+### 2.3.2 Exploration of all non numerical variables
+
+```{r, echo = FALSE}
+
+summary_non_num (df_not_num, datadesc)
+```
+
+## 2.4 Verify data quality
+
+### 2.4.1 check missing values
+
+```{r}
+
+for(i in 1:nrow(datadesc)){  
+  print(paste(names(rawframe[i]), "  # of NA:", colSums(is.na(rawframe[i])), 
+              "  in %", round(colSums(is.na(rawframe[i])/nrow(rawframe)), 3)*100))
+  datadesc$`% of na values`[i] <- round(colSums(is.na(rawframe[i]))/nrow(rawframe), 3)*100
+}    
+#write.csv2(datadesc$`% of na values`, file = "na_%.csv")
+writexl::write_xlsx(datadesc, path = paste0(rel_fpath, filename, '_data_control.xlsx'))
+
+# todo grafik, sortieren,..
+
+```
+
+
+### 2.4.2 check collinearity
+
+
+```{r}
+
+# produce correlation matrix
+check_collinearity (df_num)
+
+# todo - na gf. abhängig von param ersetzen
+```
+
+## 2.5 Pivot Section
+
+```{r}
+library('reshape')
+raw_pass <- rawframe[rawframe$SERGEBNIS=='PASS',]
+raw_pass_pivot <- cast(raw_pass, SID ~ SMMNR)
+
+count_messw <- rawframe %>% group_by(SID) %>% summarize(count=n())
+count_messw_pass <- rawframe %>% filter(SERGEBNIS=='PASS') %>% group_by(SID) %>% summarize(count_pass=n())
+count_messw_fail <- rawframe %>% filter(SERGEBNIS=='FAIL') %>% group_by(SID) %>% summarize(count_fail=n())
+count_messw <- count_messw %>% full_join (count_messw_pass) %>% full_join (count_messw_fail)
+
+```
+
+
+
+
+## 3.1 Transformation of variables
+
+```{r}
+datadesc <- read_datadesc(data_control_file)
+df_clean <- transformation(rawframe, datadesc)
+
+#create new sub dataframes for numeric and non numeric variables
+df_num <- as.data.frame (df_clean [ , sapply(df_clean,is.numeric)])
+df_not_num <- as.data.frame (df_clean [ , !sapply(df_clean,is.numeric)])
+```
+
+## 3.2 Reduction of variables
+
+```{r}
+datadesc <- read_datadesc(data_control_file)
+# exclude not relevant variables according to Data Description entry in column Clean Data Frame
+df_clean <- rawframe[ ,datadesc$`Clean Data Frame`!="exclude"]  
+
+#create new sub dataframes for numeric and non numeric variables
+df_num <- as.data.frame (df_clean [ , sapply(df_clean,is.numeric)])
+df_not_num <- as.data.frame (df_clean [ , !sapply(df_clean,is.numeric)])
+
+```
+
+```{r}
+# =================================================
+# again perform data exploration as above in chapter 2
+                           # Boxplots and Histograms for numerical variables
+if (printpdf) pdf(outputfile)
+if (scatterplot) plot (df_num) # scatter plot
+plot_num (df_num, datadesc)
+if (printpdf) dev.off()    # reset device to screen plot 
+
+summary_non_num (df_not_num, datadesc)    # Exploration of non numerical variables
+```
+
+```{r}
+print("...save clean data frame")
+if (shortnames==T) outputcsv <- "./output/clean_4_modeling_with_factors.csv"
+write.table(df_clean,       # write resulting data into CSV file with tabstops
+            file=outputcsv,
+            sep=",", quote=FALSE, row.names=FALSE, dec=".") 
+```
+
+
+## 3.3 Construct Data
+
+```{r}
+datadesc <- read_datadesc(data_control_file)
+df_clean <- create_dummy(df_clean, datadesc)
+
+#create new sub dataframes for numeric and non numeric variables
+df_num <- as.data.frame (df_clean [ , sapply(df_clean,is.numeric)])
+df_not_num <- as.data.frame (df_clean [ , !sapply(df_clean,is.numeric)])
+```
+
+```{r}
+# =================================================
+# Save clean data frame with dummy variables
+# =================================================
+print("...save clean data frame")
+if (shortnames==T) outputcsv <- "./output/clean_4_modeling_with_dummies.csv"
+write.table(df_clean,       # write resulting data into CSV file with tabstops
+            file=outputcsv, 
+            sep=",", quote=FALSE, row.names=FALSE, dec=".") 
+```
+

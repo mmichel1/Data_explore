@@ -135,7 +135,7 @@ plot_num <- function(df,desc) {
       print(paste(top_3[1:3,3], "%"))
       print(paste("Variance    :", var(na.omit(df_num[,i]))))     
       print(paste("Standard dev:", sqrt(var(na.omit(df_num[,i])))))    
-      var_desc <-(desc[names(df[i])==desc[ ,1], ]) # get descriptions of the field
+      var_desc <-(desc[names(df[i])==desc[ ,1], ]) # get descriptions of the field with matching var name
       print(paste("Description :", var_desc[2]))  # field description
       print(paste("Comment     :", var_desc$Comment.Data.Expl)) # field comment
     }
@@ -147,7 +147,7 @@ summary_non_num <- function(df,desc) {
   par(mfrow=c(1,1), mai=c(0.5,2.5,0.5,0.5), pty="m", cex=0.8)
   for(i in 1:ncol(df)) { 
     var_ <- df[i]
-    var_desc <- desc[names(df[i])==desc[,1],] # get descriptions of the field
+    var_desc <- desc[names(df[i])==desc[,1],] # get descriptions of the field with matching var name
     
     if (all (is.na(df_not_num[,i])) == TRUE) {
       print("--------------------------------------------------------------------------------------------")
@@ -156,7 +156,8 @@ summary_non_num <- function(df,desc) {
     }    
     else {
       # factorize "non date" fields
-      if (is.character(df[,i])) {
+      #if (names(df[i])=='SERGEBNIS') browser()
+      if (is.character(df[,i]) || is.factor(df[,i])) {
         var_ <- as.factor (unlist(df[i]))
         barplot(table(var_), xlab = "Frequency of Level Occurrence", main=names(df[i]), horiz=TRUE, las=1)
       }
