@@ -250,18 +250,30 @@ check_collinearity (df_num)
 ## 2.5 Pivot Section
 
 ```{r}
-library('reshape')
-raw_pass <- rawframe[rawframe$SERGEBNIS=='PASS',]
-raw_pass_pivot <- cast(raw_pass, SID ~ SMMNR)
+#library('reshape')
+#raw_pass <- rawframe[rawframe$SERGEBNIS=='PASS',]
+#raw_pass_pivot <- cast(raw_pass, SID ~ SMMNR)
 
 count_messw <- rawframe %>% group_by(SID) %>% summarize(count=n())
-count_messw_pass <- rawframe %>% filter(SERGEBNIS=='PASS') %>% group_by(SID) %>% summarize(count_pass=n())
-count_messw_fail <- rawframe %>% filter(SERGEBNIS=='FAIL') %>% group_by(SID) %>% summarize(count_fail=n())
+count_messw_pass <- rawframe %>% filter(SERGEBNIS=='PASS') %>% group_by(SID) %>% summarize(count_pass=n(),
+                                                                                           time_pass=list(as.character(unique(DTINSERT))))
+count_messw_fail <- rawframe %>% filter(SERGEBNIS=='FAIL') %>% group_by(SID) %>% summarize(count_fail=n(),
+                                                                                           time_fail=list(as.character(unique(DTINSERT))),
+                                                                                           limit_viol=sum((DMW>DTO)|(DMW<DTU)))
 count_messw <- count_messw %>% full_join (count_messw_pass) %>% full_join (count_messw_fail)
 
 ```
 
+## 2.5 Combine Q-Daten
 
+```{r}
+q_daten <- read_delim("data/Q_Daten_FBG_ A5E01283425_04.07.2018.csv", 
+    ";", escape_double = FALSE, col_types = cols(BEFUND_STATUS1 = col_skip(), 
+        BEFUND_STATUS2 = col_skip(), PRUEFUNG = col_skip()), trim_ws = TRUE,
+    n_max=16)  # skip questions and double entries
+
+count_messw <- count_messw %>% full_join (q_daten, by = c("SID" = "FID")) 
+```
 
 
 ## 3.1 Transformation of variables
