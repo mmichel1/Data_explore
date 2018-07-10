@@ -7,6 +7,29 @@
 #library(tidyverse)
 #library(hexbin)
 
+library (dplyr)
+library (rlang)
+
+# ====================== Function ================
+read_datadesc <- function(data_control_file_name) {
+  desc <-read_xlsx (data_control_file_name, # sheet = "datadesc",    once control file written sheet name disappears unfortunately 
+                       col_types = c(
+                         "text",      # Field Name
+                         "text",      # Field Description
+                         "text",      # Marker for Clean Data Frame
+                         "text",      # Scale of Mesurement
+                         "text",      # Binary Default 0
+                         "text",      # Comment on outlier checking
+                         "text",      # comment on data exploration result
+                         "text",      # Create dummy var if "x" 
+                         "text",      # Reduce which Dummy
+                         "numeric"))  # % of na values
+  warnings() 
+  desc[is.na(desc)] <- ''
+  return(desc)
+}
+
+
 # ====================== Function ================
 # Multiple plot function
 #
@@ -64,7 +87,8 @@ plot_num <- function(df,desc) {
     if (all (is.na(df_num[,i])) == TRUE) {
       print("--------------------------------------------------------------------------------------------")
       print(paste("Field name:", names(df[i])), col="green")
-      print(paste("Comment   : all values na ",var_desc$Comment.Data.Expl))
+      print(paste("Comment   : all values na ",var_desc$Comment.Data.Expl)) # zu dem Zeitpunkt ist var_desc undefiniert?? 
+      # koennte man aus der for schleife ziehen?
     }    
     else {
       # --- Boxplots ---
@@ -109,7 +133,7 @@ plot_num <- function(df,desc) {
       print(paste(top_3[1:3,3], "%"))
       print(paste("Variance    :", var(na.omit(df_num[,i]))))     
       print(paste("Standard dev:", sqrt(var(na.omit(df_num[,i])))))    
-      var_desc <-(desc[names(df[i])==desc[,1],]) # get descriptions of the field
+      var_desc <-(desc[names(df[i])==desc[ ,1], ]) # get descriptions of the field with matching var name
       print(paste("Description :", var_desc[2]))  # field description
       print(paste("Comment     :", var_desc$Comment.Data.Expl)) # field comment
     }
@@ -121,13 +145,24 @@ summary_non_num <- function(df,desc) {
   par(mfrow=c(1,1), mai=c(0.5,2.5,0.5,0.5), pty="m", cex=0.8)
   for(i in 1:ncol(df)) { 
     var_ <- df[i]
-    var_desc <- desc[names(df[i])==desc[,1],] # get descriptions of the field
+    var_desc <- desc[names(df[i])==desc[,1],] # get descriptions of the field with matching var name
     
     if (all (is.na(df_not_num[,i])) == TRUE) {
       print("--------------------------------------------------------------------------------------------")
       print(paste("Field name:", names(df[i])), col="green")
       print(paste("Comment   : all values na ",var_desc$Comment.Data.Expl))
+<<<<<<< HEAD
       }    
+=======
+    }    
+    else {
+      # factorize "non date" fields
+      #if (names(df[i])=='SERGEBNIS') browser()
+      if (is.character(df[,i]) || is.factor(df[,i])) {
+        var_ <- as.factor (unlist(df[i]))
+        barplot(table(var_), xlab = "Frequency of Level Occurrence", main=names(df[i]), horiz=TRUE, las=1)
+      }
+>>>>>>> f2c556f22a7cb41aca4bfd814edbf7b4fa84bb82
       else {
         # factorize "non date" fields
         if (is.character(df[,i])) {
@@ -345,3 +380,4 @@ create_dummy <- function(df, datadesc) {
   }
   return (df)
 }
+
