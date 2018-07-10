@@ -73,9 +73,7 @@ plot_num <- function(df,desc) {
         geom_boxplot(mapping = aes(x = "", y = df[,i]), na.rm = TRUE) +
         labs(x = names(df[i]), y = "") +
         geom_text(data = as.data.frame(boxp_5_num), aes(x = 1.25, boxp_5_num, label = boxp_5_num))
-      #boxplot(df[,i], main=names(df[i]), type="l")
-      #text(y=fivenum(df[,i]), labels =fivenum(round(df[,i], 3)), x=1.25)
-      
+
       # --- Histograms ---
       #hist(df[,i], main=names(df[i]), xlab=NULL)
       if (max(na.omit(df_num[i])) - min(na.omit(df_num[i])) == 0) {
@@ -129,17 +127,31 @@ summary_non_num <- function(df,desc) {
       print("--------------------------------------------------------------------------------------------")
       print(paste("Field name:", names(df[i])), col="green")
       print(paste("Comment   : all values na ",var_desc$Comment.Data.Expl))
-    }    
-    else {
-      # factorize "non date" fields
-      if (is.character(df[,i])) {
-        var_ <- as.factor (unlist(df[i]))
-        barplot(table(var_), xlab = "Frequency of Level Occurrence", main=names(df[i]), horiz=TRUE, las=1)
-      }
+      }    
       else {
-        boxplot(df[,i], main=names(df[i]), type="l")
-        #text(y=fivenum(df_not_num[,i]), labels =fivenum(round(df_not_num[,i], 3)), x=1.25)
-      }
+        # factorize "non date" fields
+        if (is.character(df[,i])) {
+         #var_ <- as.factor (unlist(df[i]))
+         #barplot(table(var_), xlab = "Frequency of Level Occurrence", main=names(df[i]), horiz=TRUE, las=1)
+          if (length (levels(as.factor(df[,i]))) < 20)
+            {
+            p1 <- ggplot(data = df) +
+              geom_bar(mapping = aes(x = df[,i])) +
+              labs(x = names(df[i]), y = "")
+            
+            # --- plot ---
+            multiplot(p1, cols=1)            
+          }
+        }
+        else {
+          boxplot(df[,i], main=names(df[i]), type="l")
+          #boxp_5_num <- fivenum(df[,i]) # gives the 5 numbers
+          #ggplot(data = df) +
+          #  geom_boxplot(mapping = aes(x = "", y = df[,i]), na.rm = TRUE) +
+          #  labs(x = names(df[i]), y = "") +
+          #  geom_text(data = as.data.frame(boxp_5_num), aes(x = 1.25, boxp_5_num, label = boxp_5_num))
+          #text(y=fivenum(df_not_num[,i]), labels =fivenum(round(df_not_num[,i], 3)), x=1.25)
+        }
       # Summaries  
       print(paste("Field name:", names(df[i])), col="green")
       print(summary(var_, max=10))
