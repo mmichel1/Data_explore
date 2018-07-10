@@ -220,8 +220,8 @@ ggplot(data = rawframe, mapping = aes(x = `Probability of Order`, y = ..density.
 ### 2.3.2 Exploration of all non numerical variables
 
 ```{r, echo = FALSE}
-        ggplot(data = df_not_num) +
-          geom_bar(mapping = aes(x = df_not_num[,i]))
+ #       ggplot(data = df_not_num) +
+ #         geom_bar(mapping = aes(x = df_not_num[,i]))
 summary_non_num (df_not_num, datadesc)
 ```
 

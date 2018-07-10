@@ -151,9 +151,8 @@ summary_non_num <- function(df,desc) {
       print("--------------------------------------------------------------------------------------------")
       print(paste("Field name:", names(df[i])), col="green")
       print(paste("Comment   : all values na ",var_desc$Comment.Data.Expl))
-      }    
-
     }    
+    
     else {
       # factorize "non date" fields
       #if (names(df[i])=='SERGEBNIS') browser()
@@ -186,6 +185,7 @@ summary_non_num <- function(df,desc) {
           #  geom_text(data = as.data.frame(boxp_5_num), aes(x = 1.25, boxp_5_num, label = boxp_5_num))
           #text(y=fivenum(df_not_num[,i]), labels =fivenum(round(df_not_num[,i], 3)), x=1.25)
         }
+      }  
       # Summaries  
       print(paste("Field name:", names(df[i])), col="green")
       print(summary(var_, max=10))
