@@ -151,9 +151,8 @@ summary_non_num <- function(df,desc) {
       print("--------------------------------------------------------------------------------------------")
       print(paste("Field name:", names(df[i])), col="green")
       print(paste("Comment   : all values na ",var_desc$Comment.Data.Expl))
-<<<<<<< HEAD
       }    
-=======
+
     }    
     else {
       # factorize "non date" fields
@@ -162,7 +161,7 @@ summary_non_num <- function(df,desc) {
         var_ <- as.factor (unlist(df[i]))
         barplot(table(var_), xlab = "Frequency of Level Occurrence", main=names(df[i]), horiz=TRUE, las=1)
       }
->>>>>>> f2c556f22a7cb41aca4bfd814edbf7b4fa84bb82
+
       else {
         # factorize "non date" fields
         if (is.character(df[,i])) {
