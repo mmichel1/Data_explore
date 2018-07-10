@@ -1,7 +1,7 @@
 ---
 title: "Data Source Jam"
-subtitle: "Project: Siemens EM MS PMBP - Utilization Forecast"
-date: 2018-05-04  
+subtitle: "Project: CATE"
+date: 2018-07-05  
 output:
   word_document: default
   pdf_document: default
@@ -10,9 +10,7 @@ output:
   df_print: paged
 ---
 
-#Data Exploration Loop 1
-Analyzed file(s): OGT offer data
-
+# Data Exploration Loop 1
 Data Exploration Topics
 
 * Summary statistics (incl. mean, median, variations, ...)
@@ -33,11 +31,10 @@ Data Exploration Topics
 library(readxl)
 library(tidyverse)
 library(hexbin)
-
 # ====================== Parameters ==============
 rel_fpath  <- "./data/"    # relative directory where original data is stored
-filename ='OGT Offer alle Positionen Fertigung Turkey' # file name of the original data 
-endung ='.xlsx'            # file extension of the original data
+filename ='A5E01283425_30062016_25072016' # file name of the original data 
+endung ='.csv'            # file extension of the original data
 
 rel_fpath_output <- "./data/" # relative directory where outputs are stored
 outputfile <- "./output/data_exploration.pdf"  # writes plots and clean data frame to outputfile
@@ -72,40 +69,41 @@ if (Read_Fresh_from_File)  {
   if (endung == ".xlsx")   {
      rawframe <- read_xlsx (path = paste0(rel_fpath, filename, endung ), guess_max=100000)
      warnings()
-  #--- read other formats ---
-  # to be added
+  } else
+  {  #--- read other formats ---
+  library(readr)
+  rawframe <- read_delim(file = paste0(rel_fpath, filename, endung), 
+    ";", escape_double = FALSE, col_types = cols(DTDATUM = col_datetime(format = "%d.%m.%Y %H:%M:%S"), 
+        DTDATUM_1 = col_datetime(format = "%d.%m.%Y %H:%M:%S"), 
+        DTINSERT = col_datetime(format = "%d.%m.%Y %H:%M:%S"), 
+        DTU = col_double(), SERGEBNIS = col_factor(levels = c("FAIL", 
+            "PASS"))), locale = locale(decimal_mark = ","), 
+    trim_ws = TRUE)
   }
-  #--- create / read data control file ---
-  if (file.exists(path = paste0(rel_fpath, filename, '_data_control', endung)))
-    data_control_file <-  paste0(rel_fpath, filename, '_data_control', endung) else
-      data_control_file <- paste0(rel_fpath, 'data_control_template.xlsx')
 
-  datadesc <- read_xlsx (data_control_file, # sheet = "datadesc",    once control file written sheet name disappears unfortunately 
-                         col_types = c(
-                           "text",      # Field Name
-                           "text",      # Field Description
-                           "text",      # Marker for Clean Data Frame
-                           "text",      # Scale of Mesurement
-                           "text",      # Binary Default 0
-                           "text",      # Comment on outlier checking
-                           "text",      # comment on data exploration result
-                           "text",      # Create dummy var if "x" 
-                           "text",      # Reduce which Dummy
-                           "numeric"))  # % of na values
-  warnings() 
+  #--- create / read data control file ---
+  if (file.exists(path = paste0(rel_fpath, filename, '_data_control.xlsx')))
+    data_control_file <-  paste0(rel_fpath, filename, '_data_control.xlsx') else
+      data_control_file <- paste0(rel_fpath, 'data_control_template.xlsx')
+  datadesc <- read_datadesc(data_control_file)
+  
   # write control file if not present
-  if (!file.exists(path = paste0(rel_fpath, filename, '_data_control', endung)))
+  if (!file.exists(path = paste0(rel_fpath, filename, '_data_control.xlsx')))
   {
     datadesc[1:length(names(rawframe)), 1] <-  names(rawframe)
-    writexl::write_xlsx(datadesc, path = paste0(rel_fpath, filename, '_data_control', endung))
-    }
+    writexl::write_xlsx(datadesc, path = paste0(rel_fpath, filename, '_data_control.xlsx'))
+  }
+  
+  # exclude not relevant variables according to Data Description entry in column Clean Data Frame
+  rawframe <- rawframe[ ,datadesc$`Clean Data Frame`!="exclude"]  
 
-}
-saveRDS(rawframe, file = paste(rel_fpath_output , filename, ".rData"))
-print("...Data saved in RData file")
+  saveRDS(rawframe, file = paste(rel_fpath_output , filename, ".rData"))
+  print("...Data saved in RData file")
+} else # Read_Fresh_from_File gleich FALSE
+{  
+  rawframe <- readRDS(file = paste(rel_fpath_output , filename, ".rData"))
+}  
 ```
-
-
 
 ##2.2 Describe Data   
 
@@ -181,9 +179,7 @@ Order it by median of "Probaility of Order"
 Findings: 
 ...
 
-Problem bei Facetierung von Histogrammen: Countwerte inkonsistent!!!
-Evlt. Abhilfe siehe https://stackoverflow.com/questions/17271968/different-breaks-per-facet-in-ggplot2-histogram
-Beispiel wo es funktioniert - ohne $:
+Problem bei Facetierung von Histogrammen: Countwerte dann inkonsistent wenn Spalte über ..$.. adressiert wird!
 https://drsimonj.svbtle.com/plotting-background-data-for-groups-with-ggplot2
  
 ```{r, echo = FALSE}
@@ -195,22 +191,19 @@ ggplot(data = rawframe) +
 
 ggplot(data = rawframe, mapping = aes(x = rawframe$`Probability of Order`)) +
          geom_freqpoly(mapping = aes(color = Status))
-
 ggplot(data = rawframe, mapping = aes(x = rawframe$`Probability of Order`, y = ..density..)) +
          geom_freqpoly(mapping = aes(color = Status))
 # subset
 t <- filter (rawframe, rawframe$Status == "Offer won")
 ggplot(data = t, mapping = aes(x = t$`Probability of Order`)) +
          geom_freqpoly(mapping = aes(color = Status))
-
-ggplot(data = rawframe, mapping = aes(x = `Probability of Order`)) +  # facet_wrap funktioniert nur wenn kein 'rawframe$' davor
-         geom_histogram(binwidth = 1) +
-         facet_wrap(~ Status, ncol = 2, scales = "free_y")
-# subset
 ggplot(data = t, mapping = aes(x = t$`Probability of Order`)) +
          geom_histogram(binwidth = 1) +
          facet_wrap(~ Status, ncol = 2)
 
+ggplot(data = rawframe, mapping = aes(x = `Probability of Order`)) +  # facet_wrap funktioniert nur wenn kein 'rawframe$' davor
+         geom_histogram(binwidth = 1) +
+         facet_wrap(~ Status, ncol = 2, scales = "free_y")
 ggplot(data = rawframe, mapping = aes(x = `Probability of Order`, y = ..density..)) +
          geom_histogram(binwidth = 1) +
          facet_wrap(~ Status, ncol = 2)
@@ -220,8 +213,7 @@ ggplot(data = rawframe, mapping = aes(x = `Probability of Order`, y = ..density.
 ### 2.3.2 Exploration of all non numerical variables
 
 ```{r, echo = FALSE}
-        ggplot(data = df_not_num) +
-          geom_bar(mapping = aes(x = df_not_num[,i]))
+
 summary_non_num (df_not_num, datadesc)
 ```
 
@@ -232,13 +224,13 @@ summary_non_num (df_not_num, datadesc)
 ```{r}
 
 for(i in 1:nrow(datadesc)){  
-  #print()
   print(paste(names(rawframe[i]), "  # of NA:", colSums(is.na(rawframe[i])), 
               "  in %", round(colSums(is.na(rawframe[i])/nrow(rawframe)), 3)*100))
   datadesc$`% of na values`[i] <- round(colSums(is.na(rawframe[i]))/nrow(rawframe), 3)*100
 }    
 #write.csv2(datadesc$`% of na values`, file = "na_%.csv")
-writexl::write_xlsx(datadesc, path = paste0(rel_fpath, filename, '_data_control', endung))
+writexl::write_xlsx(datadesc, path = paste0(rel_fpath, filename, '_data_control.xlsx'))
+
 # todo grafik, sortieren,..
 
 ```
@@ -251,29 +243,59 @@ writexl::write_xlsx(datadesc, path = paste0(rel_fpath, filename, '_data_control'
 
 # produce correlation matrix
 check_collinearity (df_num)
+
 # todo - na gf. abhängig von param ersetzen
+```
+
+## 2.5 Pivot Section
+
+```{r}
+#library('reshape')
+#raw_pass <- rawframe[rawframe$SERGEBNIS=='PASS',]
+#raw_pass_pivot <- cast(raw_pass, SID ~ SMMNR)
+
+count_messw <- rawframe %>% group_by(SID) %>% summarize(count=n())
+count_messw_pass <- rawframe %>% filter(SERGEBNIS=='PASS') %>% group_by(SID) %>% summarize(count_pass=n(),
+                                                                                           time_pass=list(as.character(unique(DTINSERT))))
+count_messw_fail <- rawframe %>% filter(SERGEBNIS=='FAIL') %>% group_by(SID) %>% summarize(count_fail=n(),
+                                                                                           time_fail=list(as.character(unique(DTINSERT))),
+                                                                                           limit_viol=sum((DMW>DTO)|(DMW<DTU)))
+count_messw <- count_messw %>% full_join (count_messw_pass) %>% full_join (count_messw_fail)
 
 ```
+
+## 2.5 Combine Q-Daten
+
+```{r}
+q_daten <- read_delim("data/Q_Daten_FBG_ A5E01283425_04.07.2018.csv", 
+    ";", escape_double = FALSE, col_types = cols(BEFUND_STATUS1 = col_skip(), 
+        BEFUND_STATUS2 = col_skip(), PRUEFUNG = col_skip()), trim_ws = TRUE,
+    n_max=16)  # skip questions and double entries
+
+count_messw <- count_messw %>% full_join (q_daten, by = c("SID" = "FID")) 
+```
+
 
 ## 3.1 Transformation of variables
 
 ```{r}
+datadesc <- read_datadesc(data_control_file)
 df_clean <- transformation(rawframe, datadesc)
 
+#create new sub dataframes for numeric and non numeric variables
+df_num <- as.data.frame (df_clean [ , sapply(df_clean,is.numeric)])
+df_not_num <- as.data.frame (df_clean [ , !sapply(df_clean,is.numeric)])
 ```
 
 ## 3.2 Reduction of variables
 
 ```{r}
-# replace NA with '' otherwise comparison with strings as below won't work
-datadesc$`Clean Data Frame`[is.na(datadesc$`Clean Data Frame`)] <- ''
-
+datadesc <- read_datadesc(data_control_file)
 # exclude not relevant variables according to Data Description entry in column Clean Data Frame
-df_clean <- df_clean[ ,datadesc$`Clean Data Frame`!="exclude"]  # todo check: dann müsste datadesc auch angepasst werden?!?!?!
+df_clean <- rawframe[ ,datadesc$`Clean Data Frame`!="exclude"]  
 
-#create a sub dataframe of numeric varialbes
+#create new sub dataframes for numeric and non numeric variables
 df_num <- as.data.frame (df_clean [ , sapply(df_clean,is.numeric)])
-#create a sub dataframe of non numeric varialbes
 df_not_num <- as.data.frame (df_clean [ , !sapply(df_clean,is.numeric)])
 
 ```
@@ -287,61 +309,27 @@ if (scatterplot) plot (df_num) # scatter plot
 plot_num (df_num, datadesc)
 if (printpdf) dev.off()    # reset device to screen plot 
 
-                           # Exploartion of non numerical variables
-summary_non_num (df_not_num, datadesc)
-                           # check missing values
-#for(i in 1:ncol(df_clean)){  
-#  print(colSums(is.na(df_clean[i])))
-#}    
+summary_non_num (df_not_num, datadesc)    # Exploration of non numerical variables
 ```
 
 ```{r}
 print("...save clean data frame")
 if (shortnames==T) outputcsv <- "./output/clean_4_modeling_with_factors.csv"
-#if (shortnames==T) names(df_clean) <- c("FinStatus", "FinOE",
-#                                   "FinDelStart", "ServType", 
-#                                    "TopAccont", "DelStart", "Offer", "BillType", "Campaign",
-#                                    "OppType", "Market", "Prio", "FrameAgreement", "SW_Platform",
-#                                    "Probability", "ProjMargin", "OE", "BidMgrInPurs", "Frequ_Sales",
-#                                    "SolMgrInPurs", "DelMgrInPurs", "ChangeRec", "Teamfill",
-#                                    "Time_bef_Purs", "BidBudPerc", "TCV_SD_bef_Purs")
 write.table(df_clean,       # write resulting data into CSV file with tabstops
             file=outputcsv,
             sep=",", quote=FALSE, row.names=FALSE, dec=".") 
-#           sep="\t", quote=FALSE, row.names=FALSE, dec=",") 
 ```
 
 
 ## 3.3 Construct Data
 
 ```{r}
-# replace NA with '' otherwise comparison with strings as below won't work
-#datadesc$`Dummy`[is.na(datadesc$`Dummy`)] <- ''
-#datadesc$`Reduce_which_Dummy`[is.na(datadesc$`Reduce_which_Dummy`)] <- ''
-
+datadesc <- read_datadesc(data_control_file)
 df_clean <- create_dummy(df_clean, datadesc)
 
-```
-
-```{r}
-# =================================================
-# again perform data exploration as above in chapter 2
-# Boxplots and Histograms for numerical variables
+#create new sub dataframes for numeric and non numeric variables
 df_num <- as.data.frame (df_clean [ , sapply(df_clean,is.numeric)])
 df_not_num <- as.data.frame (df_clean [ , !sapply(df_clean,is.numeric)])
-
-if (printpdf) pdf(outputfile)
-if (scatterplot) plot (df_num) # scatter plot
-plot_num (df_num, datadesc)
-if (printpdf) dev.off()     # reset device to screen plot 
-
-# check missing values
-#for(i in 1:ncol(df_clean)){  
-#  print(colSums(is.na(df_clean[i])))
-#}    
-# check collinearity
-par(mfrow=c(1,1), mai=c(0.5,0.5,0.5,0.5), pty="m", cex=0.7)
-check_collinearity (df_num)
 ```
 
 ```{r}
@@ -353,6 +341,5 @@ if (shortnames==T) outputcsv <- "./output/clean_4_modeling_with_dummies.csv"
 write.table(df_clean,       # write resulting data into CSV file with tabstops
             file=outputcsv, 
             sep=",", quote=FALSE, row.names=FALSE, dec=".") 
-#           sep="\t", quote=FALSE, row.names=FALSE, dec=",") 
 ```
 
