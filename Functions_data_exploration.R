@@ -23,8 +23,8 @@ read_datadesc <- function(data_control_file_name) {
                          "text",      # comment on data exploration result
                          "text",      # Create dummy var if "x" 
                          "text",      # Reduce which Dummy
-                         "numeric"))  # % of na values
-  warnings() 
+                         "text"))  # % of na values
+  warnings()
   desc[is.na(desc)] <- ''
   return(desc)
 }
@@ -84,11 +84,11 @@ plot_num <- function(df,desc) {
   #'mai' gives the number of lines of margin
   # to be specified on the four sides of the plot.
   for(i in 1:ncol(df)) {
+    var_desc <-(desc[names(df[i])==desc[ ,1], ]) # get descriptions of the field with matching var name
     if (all (is.na(df_num[,i])) == TRUE) {
       print("--------------------------------------------------------------------------------------------")
       print(paste("Field name:", names(df[i])), col="green")
-      print(paste("Comment   : all values na ",var_desc$Comment.Data.Expl)) # zu dem Zeitpunkt ist var_desc undefiniert?? 
-      # koennte man aus der for schleife ziehen?
+      print(paste("Comment   : all values na ",var_desc$Comment.Data.Expl))  
     }    
     else {
       # --- Boxplots ---
@@ -114,28 +114,25 @@ plot_num <- function(df,desc) {
       multiplot(p1, p2, cols=2)
       #gridextra::gridarrange (p1, p2, cols=2)
       
-      # --- 3 most typical values ---
-      top_3 <- (sort(table(df[i]), decreasing = TRUE)) %>%
-        as.data.frame()
+      # --- 3 most typical values ---- für einzelwerte as.table() nötig
+      top_3 <- table(df[i]) %>% sort(decreasing = TRUE) %>% as.table() %>% as.data.frame()
       if (sum(top_3$Freq) != 0) {
-        top_3$perc <- top_3$Freq/(sum(top_3$Freq) + colSums(is.na(df[i])))*100
+        top_3$perc <- round(top_3$Freq/(sum(top_3$Freq))*100, 2)
       }
-      else {
-        top_3$perc <- 0
-      }
+      else top_3$perc <- 0
       
       # Summaries
       print(summary(df[i]))
-      print(paste("# of na     :", round(colSums(is.na(df[i]))/nrow(df[i]), digits = 5)*100, "in %"))      
+      print(paste("# of na: ", round(colSums(is.na(df[i]))/nrow(df[i]), digits = 5)*100, "%"))      
       print("3 most typical values:")
       print(paste(top_3[1:3,1], ""))
       print(paste(top_3[1:3,2], "#"))
       print(paste(top_3[1:3,3], "%"))
-      print(paste("Variance    :", var(na.omit(df_num[,i]))))     
-      print(paste("Standard dev:", sqrt(var(na.omit(df_num[,i])))))    
-      var_desc <-(desc[names(df[i])==desc[ ,1], ]) # get descriptions of the field with matching var name
-      print(paste("Description :", var_desc[2]))  # field description
-      print(paste("Comment     :", var_desc$Comment.Data.Expl)) # field comment
+      print(paste("Variance    :", round(var(na.omit(df_num[,i])), digits =2)))     
+      print(paste("Standard dev:", round(sqrt(var(na.omit(df_num[,i]))), digits =2)))    
+      if (var_desc$`Field Description` != "")  print(paste("Description :", var_desc$`Field Description`))  # field description
+      if (var_desc$Comment.Data.Expl != "")  print(paste("Comment     :", var_desc$Comment.Data.Expl)) # field comment
+      cat("\n")
     }
   }
 }
@@ -192,6 +189,7 @@ summary_non_num <- function(df,desc) {
       print(paste("# of na    :", colSums(is.na(df[i])), "  in %", colSums(is.na(df[i]))/nrow(df[i])*100))
       print(paste("Description:", var_desc[2]))     
       print(paste("Comment    :", var_desc$Comment.Data.Expl))  
+      cat("\n")
     }
     #print("--------------------------------------------------------------------")
   }
@@ -203,14 +201,15 @@ check_collinearity <- function(df) {
   library(corrplot)
   if (printpdf) pdf(outputfile)
   cor_m <- cor(df)
-  corrplot::corrplot.mixed(cor_m)
+  warnings()
+  corrplot::corrplot.mixed(cor_m, number.cex = 1, tl.cex = .7)
   if (printpdf) dev.off()    # reset device to screen plot
   
   # get index of positively correlated variables from correlation matrix
   cor_index <- which (cor_m >= 0.7 & cor_m < 1)
   row_index <- cor_index %/% nrow(cor_m) + 1
   column_index <- cor_index %% nrow(cor_m)
-  print("--------------------------------------------------------------------")  
+  cat("\n--------------------------------------------------------------------\n")  
   print ("Positively correlated variable pairs, r >= 0,7")
   if (length(cor_index) > 0) {
     for (i in 1:length(cor_index)) {
@@ -218,12 +217,11 @@ check_collinearity <- function(df) {
                   round(cor_m[cor_index[i]], digits = 2)))
     }
   }
-  
   # get index of negatively correlated variables from correlation matrix
   cor_index <- which (cor_m <= -0.7 & cor_m > -1)
   row_index <- cor_index %/% nrow(cor_m) + 1
   column_index <- cor_index %% nrow(cor_m)
-  print("--------------------------------------------------------------------")   
+  print('--------------------------------------------------------------------')   
   print ("Negatively correlated variable pairs, r <= -0,7")
   if (length(cor_index) > 0) {
     for (i in 1:length(cor_index)) {
@@ -254,7 +252,7 @@ fac_max <- function (fac, th){
 # =================================================
 transformation <- function(df, datadesc) {
   for(i in 1:ncol(df)) {
-    if (!is.na(datadesc$`Clean Data Frame`[i])) {
+    if ((datadesc$`Clean Data Frame`[i] != '') && (datadesc$`Clean Data Frame`[i] != 'exclude') ) {
       print (paste("... transforming", names(df[i])))
       
       # transform right-skewed data to logarithmic scale
@@ -262,12 +260,15 @@ transformation <- function(df, datadesc) {
         # mit dplyer ziemlicher Aufwand, weil dynamische Spaltenzuweisung notwendig - Paket rlang! 
         # dann kann man mit doppel Ausrufezeichen die Spaltennamenvariablen referenzieren
         # https://stackoverflow.com/questions/47440812/dplyr-mutate-dynamically-named-variables-using-other-dynamically-named-variabl
-        col_log_name <- rlang::sym(paste0(names(df[i]), '_log'))
+        #col_log_name <- rlang::sym(paste0(names(df[i]), '_log'))
         col_orig_name <- rlang::sym(names(df[i]))
-        df <- df %>% mutate(!!col_log_name := round(log(!!col_orig_name), 2)) %>% as.data.frame() %>% mutate(!!col_orig_name := NULL)
+        df <- df %>% mutate(!!col_orig_name := round(log(!!col_orig_name), 2)) %>% as.data.frame() #%>% mutate(!!col_orig_name := NULL)
         #      df[i] <- log(df[i])      nicht wirklich einfacher :-(
         # immer noch kein infinite handling
         df[i] <- replace(unlist(df[i]), is.infinite(unlist(df[i])), 0)  #replacement of infinite values NA by 0
+        # field name austauschen und control file neu abspeichern
+        #datadesc$`Field Name`[i] <- as.character(col_log_name)
+        #writexl::write_xlsx(datadesc, path = paste0(rel_fpath, filename, '_data_control', endung))
       }
       
       # transform into binary (0,1) variable

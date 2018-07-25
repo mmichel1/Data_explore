@@ -79,26 +79,11 @@ if (Read_Fresh_from_File)  {
   if (file.exists(path = paste0(rel_fpath, filename, '_data_control', endung)))
     data_control_file <-  paste0(rel_fpath, filename, '_data_control', endung) else
       data_control_file <- paste0(rel_fpath, 'data_control_template.xlsx')
+  datadesc <- read_datadesc(data_control_file)
 
-  datadesc <- read_xlsx (data_control_file, # sheet = "datadesc",    once control file written sheet name disappears unfortunately 
-                         col_types = c(
-                           "text",      # Field Name
-                           "text",      # Field Description
-                           "text",      # Marker for Clean Data Frame
-                           "text",      # Scale of Mesurement
-                           "text",      # Binary Default 0
-                           "text",      # Comment on outlier checking
-                           "text",      # comment on data exploration result
-                           "text",      # Create dummy var if "x" 
-                           "text",      # Reduce which Dummy
-                           "numeric"))  # % of na values
-  warnings() 
-  # write control file if not present
-  if (!file.exists(path = paste0(rel_fpath, filename, '_data_control', endung)))
-  {
-    datadesc[1:length(names(rawframe)), 1] <-  names(rawframe)
-    writexl::write_xlsx(datadesc, path = paste0(rel_fpath, filename, '_data_control', endung))
-    }
+  # write control file if not present, also when present in order to reset log-transformed names
+  datadesc[1:length(names(rawframe)), 1] <-  names(rawframe)
+  writexl::write_xlsx(datadesc, path = paste0(rel_fpath, filename, '_data_control', endung))
 
 }
 saveRDS(rawframe, file = paste(rel_fpath_output , filename, ".rData"))
@@ -159,7 +144,7 @@ data specific!!
 ggplot(data = df_num) +
   geom_histogram(mapping = aes(x = df_num$Item), binwidth = 1, na.rm = TRUE) +
   coord_cartesian(xlim = c(0, 400), ylim = c(0, 100)) +
-  labs(x = names(df_num$Item)) # names(df_num$Item) ist NULL!!
+  labs(x="Item")
 
 # use "group by"" and "summarize" allways together
 c_items <- df_num %>%
@@ -259,6 +244,7 @@ check_collinearity (df_num)
 
 ```{r}
 df_clean <- transformation(rawframe, datadesc)
+#datadesc <- read_datadesc(data_control_file)
 
 ```
 
