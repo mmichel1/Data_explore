@@ -116,7 +116,7 @@ rawframe <- rawframe %>% arrange(DTDATUM, NORDER)
 if (basic_tranform) {
   #df_num$`Total Customer Price (EUR)` <- log(df_num$`Total Customer Price (EUR)`)
   rawframe <- rawframe[rawframe$SEINHEIT != 'OE' ,]
-
+}
 #create a sub dataframe of numeric varialbes
 df_num <- as.data.frame (rawframe [ , sapply(rawframe,is.numeric)])
 print (paste("Dimension of dataframe of numeric variables (columns)", dim(df_num)[2]))
@@ -124,7 +124,7 @@ print (paste("Dimension of dataframe of numeric variables (columns)", dim(df_num
 #create a sub dataframe of non numeric varialbes
 df_not_num <- as.data.frame (rawframe [ , !sapply(rawframe,is.numeric)])
 print (paste("Dimension of dataframe of not-numeric variables (columns)", dim(df_not_num)[2]))
-}
+
 ```
 
 ### 2.3.1 Boxplots and Histograms of all numerical variables
