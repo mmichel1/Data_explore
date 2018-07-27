@@ -34,12 +34,19 @@ library(hexbin)
 # ====================== Parameters ==============
 rel_fpath  <- "./data/"    # relative directory where original data is stored
 filename ='A5E01283425_30062016_25072016' # file name of the original data 
+filename2 ='A5E02758387_01062016_25072016' # file name of the original data
+filename3 ='A5E02758387_11072016_15082016' # file name of the original data
+filename4 ='A5E31281377_15062016_11072016_BGmitwenigenFehlern' # file name of the original data
+filename5 ='A5E32692783_25072016_15082016' # file name of the original data
+filename6 ='BD_CIB_DAC-A5E33212840_01062016_01072016' # file name of the original data
+filename7 ='CIB_DAC-A5E33212840_01072016_25072016' # file name of the original data
+
 endung ='.csv'            # file extension of the original data
 rel_fpath_output <- "./data/" # relative directory where outputs are stored
 outputfile <- "./output/data_exploration.pdf"  # writes plots and clean data frame to outputfile
 outputcsv  <- "./output/clean_4_modelling_with_R.csv"
 
-Read_Fresh_from_File <- F  # Set to TRUE for first run to fill var rawframe
+Read_Fresh_from_File <- T  # Set to TRUE for first run to fill var rawframe
                            # clean dat frame, set to FALSE for initial data understanding
 options(scipen=999)        # suppress exponential form of print output format
 printpdf <- FALSE          # if printout in PDF desired
@@ -75,14 +82,19 @@ if (Read_Fresh_from_File)  {
         DTDATUM_1 = col_datetime(format = "%d.%m.%Y %H:%M:%S"), 
         DTINSERT = col_datetime(format = "%d.%m.%Y %H:%M:%S"), 
         DTU = col_double(), SERGEBNIS = col_factor(levels = c("FAIL", 
-            "PASS"))), locale = locale(decimal_mark = ","), 
+            "PASS")), X42 = col_skip() ), locale = locale(decimal_mark = ","), 
+    trim_ws = TRUE)
+  rawframe2 <- read_delim(file = paste0(rel_fpath, filename2, endung), 
+    ";", escape_double = FALSE, col_types = cols(DTDATUM = col_datetime(format = "%d.%m.%Y %H:%M:%S"), 
+        DTDATUM_1 = col_datetime(format = "%d.%m.%Y %H:%M:%S"), 
+        DTINSERT = col_datetime(format = "%d.%m.%Y %H:%M:%S"), 
+        DTU = col_double(), SERGEBNIS = col_factor(levels = c("FAIL", 
+            "PASS")), X42 = col_skip() ), locale = locale(decimal_mark = ","), 
     trim_ws = TRUE)
   }
 
-  # initial exclusion of not relevant variables according to Data Description entry in column Clean Data Frame
-  rawframe <- rawframe[ ,datadesc$`Clean Data Frame`!="exclude"]  
-
   saveRDS(rawframe, file = paste(rel_fpath_output , filename, ".rData"))
+  saveRDS(rawframe, file = paste(rel_fpath_output , filename2, ".rData"))
   print("...Data saved in RData file")
 } else # Read_Fresh_from_File gleich FALSE
   rawframe <- readRDS(file = paste(rel_fpath_output , filename, ".rData"))
@@ -93,6 +105,10 @@ if (file.exists(path = paste0(rel_fpath, filename, '_data_control.xlsx')))
     data_control_file <- paste0(rel_fpath, 'data_control_template.xlsx')
 datadesc <- read_datadesc(data_control_file)
   
+# initial exclusion of not relevant variables according to Data Description entry in column Clean Data Frame
+rawframe <- rawframe[ ,datadesc$`Clean Data Frame`!="exclude"]  
+rawframe2 <- rawframe2[ ,datadesc$`Clean Data Frame`!="exclude"]  
+
 # write control file if not present
 if (!file.exists(path = paste0(rel_fpath, filename, '_data_control.xlsx')))  {
   datadesc[1:length(names(rawframe)), 1] <-  names(rawframe)
