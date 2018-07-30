@@ -9,8 +9,25 @@
 
 library (dplyr)
 library (rlang)
+library(readr)
 
-# ====================== Function ================
+# ====================== Function read control file ================
+read_data_csv <- function(data_file_name) {
+  raw <- read_delim(data_file_name, 
+                         ";", escape_double = FALSE, col_types = cols(DTDATUM = col_datetime(format = "%d.%m.%Y %H:%M:%S"), 
+                                                                      DTINSERT = col_datetime(format = "%d.%m.%Y %H:%M:%S"), 
+                                                                      NTHID_1 = col_skip(),
+                                                                      DTDATUM_1 = col_skip(),
+                                                                      DTU = col_double(), 
+                                                                      SERGEBNIS = col_factor(levels = c("FAIL", "PASS")),
+                                                                      SEINHEIT = col_character(),
+                                                                      X42 = col_skip() ),       # due to semicolon repair one column too much 
+                         locale = locale(decimal_mark = ","), 
+                         trim_ws = TRUE)
+  return(raw)
+}
+
+# ====================== Function read control file ================
 read_datadesc <- function(data_control_file_name) {
   desc <-read_xlsx (data_control_file_name, # sheet = "datadesc",    once control file written sheet name disappears unfortunately 
                        col_types = c(
