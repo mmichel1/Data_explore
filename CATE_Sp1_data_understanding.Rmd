@@ -1,7 +1,7 @@
 ---
-title: "Data Source Jam"
-subtitle: "Project: CATE"
-date: 2018-07-24  
+title: "Project: CATE"
+subtitle: "Sprint 1: Data Understanding"
+date: 2018-08-06  
 output:
   word_document: default
   pdf_document: default
@@ -10,28 +10,28 @@ output:
   df_print: paged
 ---
 
-# Data Exploration Loop 1
-Data Exploration Topics
+# Data Understanding Topics
+
+Overall dataset check if matching requirements (completeness, volumes, labels, accessability)
 
 * Summary statistics (incl. mean, median, variations, ...)
 * Five numbers summary by boxplots (numerical data)
 * Distribution by bar charts and histograms
 * Categories reduction
-* Derived variables
 * Missing values and outliers
 * Subgroups, patterns and trends
-* Covariations (relationships between pairs of attributes)
-    - distribution of a continuous variable broken down by a categorical variable
-    - between categorical variables
-    - between two continuous variables
 * Correlations (numerical variables)
 
-```{r, echo = FALSE}
-# ====================== Libraries ================
+#1. Setup Environment
+Provide filenames, ~type and environment variables.
+Source data exploration routines.
+
+```{r, echo=FALSE, results='hide'}
+#  Libraries 
 library(readxl)
 library(tidyverse)
 library(hexbin)
-# ====================== Parameters ==============
+# Parameters 
 rel_fpath  <- "./data/"    # relative directory where original data is stored
 filename ='A5E01283425_30062016_25072016' # file name of the original data 
 filename2 ='A5E02758387_01062016_25072016' # file name of the original data
@@ -53,9 +53,10 @@ printpdf <- FALSE          # if printout in PDF desired
 shortnames <- TRUE         # if T change to short variable names is desired
 scatterplot <- FALSE       # it T do scatterplot
 basic_tranform <- T        # do basic feature transformations
-# ====================== Sources ===============
+# Sources 
 source(file = "Functions_data_exploration.R")
 ```
+
 #2. D a t a   U n d e r s t a n d i n g
   
 ##2.1 Collect Initial Data
@@ -66,6 +67,16 @@ Read description and configuration file from "rel_fpath"!
 Save data as RDS file format 
 
 ###2.1.1 Collect ICT measurement Data
+
+Read 7 ICT measurement files.
+
+A5E01283425_30062016_25072016.csv
+A5E02758387_01062016_25072016.csv
+A5E02758387_11072016_15082016.csv
+A5E31281377_15062016_11072016_BGmitwenigenFehlern.csv
+A5E32692783_25072016_15082016.csv
+BD_CIB_DAC-A5E33212840_01062016_01072016.csv
+CIB_DAC-A5E33212840_01072016_25072016.csv
 
 ```{r, echo = FALSE}
 # ====================== R e a d   d a t a ============== alternative
@@ -142,7 +153,7 @@ write.table(rawframesnap,       # write resulting data into CSV file with tabsto
 
 ```
 
-Remove duplicates, generate one combined rawframe for ICT measurements
+Remove duplicates, generate one combined rawframe for ICT measurements:
 ```{r, echo = FALSE}
 # check for double measurements - 258 cycles of two A5E02758387 - files
 cat("check for double measurements - duplicated measurement cycles of two A5E02758387 - files: ", 
@@ -162,7 +173,7 @@ rawframe <- rawframe[duplicated(rawframe$NTDID)=="FALSE", ]
 ```
 ###2.1.2 Collect Q Data
 
-```{r}
+```{r, results='hold'}
 q_daten <- read_delim("data/DPMI_Fehler_alle_alle_201606_bis_201608_31.07.2018_adapt.csv", 
     ";", escape_double = FALSE, col_types = cols(DATUM = col_datetime(format = "%d.%m.%Y %H:%M")),
     locale = locale(encoding = "ISO-8859-1"), 
@@ -222,67 +233,6 @@ plot_num (df_num, datadesc)
 if (printpdf) dev.off()    # reset device to screen plot 
 ```
 
-Explore a single numerical variable - data specific - and detect patterns:
-* peaks at 10x iterm
-* counts
-* 3 most common values
-```{r, echo = FALSE}
-# mini feature engineering CATE
-above_thresh_df <- df_num$DMW[(df_num$DMW>df_num$DTO)] - df_num$DTO[(df_num$DMW>df_num$DTO)] %>% as.data.frame( )
-names(above_thresh_df) <- "above_thresh"
-below_thresh_df <- df_num$DTU[(df_num$DMW<df_num$DTU)] - df_num$DMW[(df_num$DMW<df_num$DTU)] %>% as.data.frame( )
-names(below_thresh_df) <- "below_thresh"
-
-# Limitiation of counts on y axis as well as outliers on x axis
-ggplot(data = above_thresh_df) +
-  geom_histogram(mapping = aes(x = above_thresh), binwidth = 50000, na.rm = TRUE) +
-  coord_cartesian(xlim = c(0, 11000000), ylim = c(0, 100)) +
-  labs(x = "above_thresh")
-
-ggplot(data = above_thresh_df) +
-  geom_histogram(mapping = aes(x = above_thresh), binwidth = 1000, na.rm = TRUE) +
-  coord_cartesian(xlim = c(0, 22000), ylim = c(0, 10)) +
-  labs(x = "above_thresh")
-
-# use "group by"" and "summarize" allways together
-c_items <- above_thresh_df %>%
-  group_by(above_thresh) %>%
-  summarise(count = n()) %>%
-  print()
-
-#print ("3 most common value")
-c_items <- (sort(table(above_thresh_df$above_thresh), decreasing = TRUE)) %>%
-     as.data.frame()
-c_items$perc <- c_items$Freq/sum(c_items$Freq)*100
-print(c_items[1:3,])
-
-# Limitiation of counts on y axis as well as outliers on x axis
-ggplot(data = below_thresh_df) +
-  geom_histogram(mapping = aes(x = below_thresh), binwidth = 5000, na.rm = TRUE) +
-  coord_cartesian(xlim = c(0, 300000), ylim = c(0, 100)) +
-  labs(x = "below_thresh")
-
-# Limitiation of counts on y axis as well as outliers on x axis
-ggplot(data = below_thresh_df) +
-  geom_histogram(mapping = aes(x = below_thresh), binwidth = 10, na.rm = TRUE) +
-  coord_cartesian(xlim = c(0, 500), ylim = c(0, 100)) +
-  labs(x = "below_thresh")
-
-# use "group by"" and "summarize" allways together
-c_items <- below_thresh_df %>%
-  group_by(below_thresh) %>%
-  summarise(count = n()) %>%
-  print()
-
-#print ("3 most common value")
-c_items <- (sort(table(below_thresh_df$below_thresh), decreasing = TRUE)) %>%
-     as.data.frame()
-c_items$perc <- c_items$Freq/sum(c_items$Freq)*100
-print(c_items[1:3,])
-
-```
-
-
 ### 2.3.2 Exploration of all non numerical variables
 
 ```{r, echo = FALSE}
@@ -291,9 +241,9 @@ summary_non_num (df_not_num, datadesc)
 
 ## 2.4 Verify data quality
 
-### 2.4.1 check missing values
+### 2.4.1 Check missing values
 
-```{r}
+```{r, echo = FALSE}
 j <- 1 #j is rawframe index, i is datadesc index
 for(i in 1:nrow(datadesc)){  
   if (datadesc$`Clean Data Frame`[i] !='exclude') {
@@ -309,15 +259,15 @@ writexl::write_xlsx(datadesc, path = paste0(rel_fpath, filename, '_data_control.
 ```
 
 
-### 2.4.2 check collinearity
+### 2.4.2 Check collinearity
 
-
-```{r}
+Correlation between input variables in ICT measurements are displayed:
+```{r, echo = FALSE}
 # produce correlation matrix
 check_collinearity (df_num)
 ```
 
-## 2.5 Pivot Section Board view - DF MC specific
+## 2.5 Pivot Section - view per FID / Board
 
 Generation of FID / board related view:
 - overall count of single measurements per board
@@ -326,7 +276,7 @@ Generation of FID / board related view:
 - nr. of threshold violations
 
 
-```{r}
+```{r, results='hold'}
 # grouping by SID, showing pass and failure times with count of violations
 count_messw <- rawframe %>% group_by(SID) %>% summarize(count=n(), SARTIKELNR=unique(SARTIKELNR)) #timediff=sum(DTINSERT-DTDATUM>100000), 3 boards mit zeitdiff
 count_messw_pass <- rawframe %>% filter(SERGEBNIS=='PASS') %>% group_by(SID) %>% 
@@ -338,7 +288,7 @@ count_messw_fail <- rawframe %>% filter(SERGEBNIS=='FAIL') %>% group_by(SID) %>%
             first_fail=min(DTDATUM), last_fail=max(DTDATUM),
             limit_viol=sum((DMW>DTO)|(DMW<DTU)))
 count_messw <- count_messw %>% full_join (count_messw_pass) %>% full_join (count_messw_fail)
-# remove last_.. time when only one occurence
+# remove last_.. time when only one time occurence
 count_messw$last_pass[count_messw$first_pass==count_messw$last_pass] <- NA
 count_messw$last_fail[count_messw$first_fail==count_messw$last_fail] <- NA
 head(count_messw)
@@ -346,10 +296,9 @@ head(count_messw)
 
 ## 2.6 Combine Q-Daten
 
-several joins of Q Data, pseudo error and label qualification from Q Data. Label qualifiation means those measurements where ICT measurement is before a repair entry.
+inner and left join of Q Data to identify common FID. Pseudo error and label qualification are attached to joined data. Label qualifiation means those measurements where ICT measurement is before a repair entry.
 
-```{r}
-count_messw_full <- count_messw %>% full_join (q_daten, by = c("SID" = "FID")) 
+```{r, results='hold'}
 count_messwinner <- count_messw %>% inner_join (q_daten, by = c("SID" = "FID")) 
 count_messw_left <- count_messw %>% left_join (q_daten, by = c("SID" = "FID")) 
 # fail vs repair time
@@ -359,19 +308,17 @@ for (i in 1:nrow(count_messwinner)) {
 }
 # true label flag
 count_messwinner$label <- count_messwinner$DATUM > count_messwinner$first_fail
-count_messw_full$label <- count_messw_full$DATUM > count_messw_full$first_fail
 count_messw_left$label <- count_messw_left$DATUM > count_messw_left$first_fail
 cat("FID / boards of ICT measurements which have an entry in Q Data: ", nrow(count_messwinner), "\n")  
 cat("FID / boards where repair is after ICT measurement (error detected in ICT and afterwards repaired): ", sum(count_messw_left$label, na.rm = TRUE), "\n")  
 
-count_messw_full$pseudo <- !is.na(count_messw_full$first_fail) & !is.na(count_messw_full$first_pass)  # 231 pseudo errors
 count_messw_left$pseudo <- !is.na(count_messw_left$first_fail) & !is.na(count_messw_left$first_pass)  # 231 pseudo errors
 cat("Nr. of pseudo errors detected: ", sum(count_messw_left$pseudo), "\n")  
 
 ```
 
-pure FID fails in Q Data?
-```{r}
+How many FID - pure fails are in Q Data?
+```{r, results='hold'}
 cat("distribution of fails in Q Data over variants/pruefstufen\n")  
 pure_fail_Q_variant <- q_daten %>% group_by(OBERSTUFE) %>% summarize(count=n())
 print(pure_fail_Q_variant)
@@ -379,9 +326,9 @@ pure_fail_Q_pruefst <- q_daten %>% group_by(PRUEFSTUFE) %>% summarize(count=n())
 print(pure_fail_Q_pruefst)
 ```
 
-pure FID fails in ICT measurement Data?
-```{r}
-# only fails: 6490 - most of them from Q data  (6475 - 32 innerjoin + 47 fail related ICT)
+How are the FID - pure fails distributed over the variants in ICT measurement Data?
+```{r, results='hold'}
+# only fails: 6490 - most of them from Q data  (6475 + 15 additional in ICT measurements (47 fail in ICT - 32 also in Q Data))
 # sum(is.na(count_messw_full$first_pass))
 
 cat("pure fails related to FID in ICT data: ",
@@ -397,118 +344,34 @@ count_messw_left$pure_fail <- is.na(count_messw_left$first_pass)
 
 ## 2.6 Unsuccessful measurement cycles distribution
 
-distribution of unsuccessful measurement cycles overall and per variant
+Following two charts show the distribution of unsuccessful measurement cycles over all variants and specific per variant.
 
-```{r}
-hist(count_messw_full$count_fail, breaks = 100)
+```{r, results='hold'}
+hist(count_messw_left$count_fail, breaks = 100)
 
-ggplot(data = count_messw_full, mapping = aes(x = count_fail)) +  
-         geom_histogram(binwidth = 10) +
+ggplot(data = count_messw_left, mapping = aes(x = count_fail)) +  
+         geom_histogram(binwidth = 10, na.rm=TRUE) +
          coord_cartesian(xlim = c(0, 1000)) +
          facet_wrap(~ SARTIKELNR, ncol = 2, scales = "free_y")
 ```         
          
 
-```{r}
-# list in DF problem!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+```{r, echo=FALSE, results='hide'}
 print("...save board data frame")
 outputcsv <- "./output/board.csv"
-write.table(select(count_messw, -(time_pass:time_fail)),       # write resulting data into CSV file with tabstops
+write.table(select(count_messw, -(time_pass:time_fail)),       # write resulting data into CSV file with tabstops without embedded date lists
             file=outputcsv,
             sep=",", quote=FALSE, row.names=FALSE, dec=".") 
 ```
 
-## 2.7 Trend failures - DF MC specific
+## 2.7 Trend of failures over the time
 
-```{r}
-
+Following chart shows the measurement cycle failure trend over time:
+```{r, results='hold'}
 messw_fail_trend <- rawframe %>% filter(SERGEBNIS=='FAIL') %>% group_by(SFILENAME) %>% summarize(count_fail=n(),
                                                                                            time_fail=unique(DTDATUM))
 
 ggplot(data = messw_fail_trend, mapping = aes(x = time_fail)) +
          geom_histogram(binwidth = 10000)
-
-hist(messw_fail_trend$time_fail, 100)
-
-```
-
-## 2.8 Pivot Section Component view - DF MC specific
-
-```{r}
-
-board_view <- rawframe %>% group_by(SMMNR) %>% summarize(count=n(), limit_viol=sum((DMW>DTO)|(DMW<DTU)))
-
-spec_bauteil <- rawframe %>% filter(SMMNR=='10.40.235_R701_235') %>% arrange(DTINSERT)
-plot(spec_bauteil$DTINSERT, spec_bauteil$DMW, type ="l")
-
-```
-
-## 3.1 Transformation of variables
-
-```{r}
-datadesc <- read_datadesc(data_control_file)
-df_clean <- transformation(rawframe, datadesc)
-
-#create new sub dataframes for numeric and non numeric variables
-df_num <- as.data.frame (df_clean [ , sapply(df_clean,is.numeric)])
-df_not_num <- as.data.frame (df_clean [ , !sapply(df_clean,is.numeric)])
-```
-
-## 3.2 Reduction of variables, visualization and saving of clean data
-
-NOT RELEVANT in DF MC case - already done above
-```{r}
-datadesc <- read_datadesc(data_control_file)
-# exclude not relevant variables according to Data Description entry in column Clean Data Frame
-df_clean <- rawframe[ ,datadesc$`Clean Data Frame`!="exclude"]  
-
-#create new sub dataframes for numeric and non numeric variables
-df_num <- as.data.frame (df_clean [ , sapply(df_clean,is.numeric)])
-df_not_num <- as.data.frame (df_clean [ , !sapply(df_clean,is.numeric)])
-
-```
-
-```{r}
-# =================================================
-# again perform data exploration as above in chapter 2
-                           # Boxplots and Histograms for numerical variables
-if (printpdf) pdf(outputfile)
-if (scatterplot) plot (df_num) # scatter plot
-plot_num (df_num, datadesc)
-if (printpdf) dev.off()    # reset device to screen plot 
-
-summary_non_num (df_not_num, datadesc)    # Exploration of non numerical variables
-```
-
-```{r}
-# specific line for DF MC
-df_clean <- rawframe
-print("...save clean data frame")
-if (shortnames==T) outputcsv <- "./output/clean_4_modeling_with_factors.csv"
-write.table(df_clean,       # write resulting data into CSV file with tabstops
-            file=outputcsv,
-            sep=",", quote=FALSE, row.names=FALSE, dec=".") 
-```
-
-## 3.3 Create dummy variables, visualization and saving of clean data
-
-```{r}
-datadesc <- read_datadesc(data_control_file)
-df_clean <- create_dummy(df_clean, datadesc)
-
-#create new sub dataframes for numeric and non numeric variables
-df_num <- as.data.frame (df_clean [ , sapply(df_clean,is.numeric)])
-df_not_num <- as.data.frame (df_clean [ , !sapply(df_clean,is.numeric)])
-```
-
-```{r}
-# =================================================
-# Save clean data frame with dummy variables
-# =================================================
-print("...save clean data frame")
-if (shortnames==T) outputcsv <- "./output/clean_4_modeling_with_dummies.csv"
-write.table(df_clean,       # write resulting data into CSV file with tabstops
-            file=outputcsv, 
-            sep=",", quote=FALSE, row.names=FALSE, dec=".") 
 ```
 
