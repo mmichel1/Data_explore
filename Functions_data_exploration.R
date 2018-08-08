@@ -398,3 +398,35 @@ create_dummy <- function(df, datadesc) {
   return (df)
 }
 
+
+extract_location <- function(data_file_name) {
+  rawlocinfo <- readLines(data_file_name)    
+  locinfo <- data.frame(matrix(ncol=3,nrow=0))
+  colnames(locinfo) <- c('SMMNR_clean','X_loc', 'Y_loc')
+  locinfo_ix <- 1
+  for (i in 1:length(rawlocinfo)) {
+    result <- grepl('\\(reference ', rawlocinfo[i])
+    #print(i)
+    if (result) {
+      pos_low = regexpr('reference ', rawlocinfo[i]) + 10
+      pos_high = regexpr('\\)', rawlocinfo[i]) -1
+      #if (pos_low>=pos_high) browser()
+      locinfo[locinfo_ix,1] <- substr(rawlocinfo[i], pos_low, pos_high)
+      locline_ix <- grep("\\(pt", rawlocinfo[i:(i+18)])
+      locline_ix <- i + locline_ix[1] -1   # zweiten locline_ix unterschlagen
+      if (length(locline_ix) == 0) browser()
+      x_y <- unlist(gregexpr('(\\d+)' , rawlocinfo[locline_ix]))
+      #if (length(x_y) == 1) browser()
+      #if (length(x_y) == 0) browser()
+      #if (is.na(x_y[2])) browser()
+      #if (is.na(x_y)) browser()
+      
+      locinfo[locinfo_ix,2] <- as.numeric(substr(rawlocinfo[locline_ix], x_y[1], x_y[2]-2))
+      y_end = regexpr('\\)', rawlocinfo[locline_ix])-1
+      locinfo[locinfo_ix,3] <- as.numeric(substr(rawlocinfo[locline_ix], x_y[2], y_end))
+      locinfo_ix <- locinfo_ix + 1
+    }
+  }
+  return (locinfo)
+}
+

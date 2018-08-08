@@ -153,10 +153,10 @@ write.table(rawframesnap,       # write resulting data into CSV file with tabsto
 
 ```
 
-Remove duplicates, generate one combined rawframe for ICT measurements:
+Remove duplicate measurements, generate one combined rawframe for ICT measurements:
 ```{r, echo = FALSE}
 # check for double measurements - 258 cycles of two A5E02758387 - files
-cat("check for double measurements - duplicated measurement cycles of two A5E02758387 - files: ", 
+cat("check for double measurements - duplicated measurement cycles (SFILENR) of two A5E02758387 - files: ", 
 sum(duplicated(c(unique(rawframe$SFILENAME), unique(rawframe2$SFILENAME), unique(rawframe3$SFILENAME), unique(rawframe4$SFILENAME), unique(rawframe5$SFILENAME), unique(rawframe6$SFILENAME), unique(rawframe7$SFILENAME)))) 
 , "\n")
 #sum(duplicated(c(rawframe2$NTDID, rawframe3$NTDID))) # 198380
@@ -165,15 +165,14 @@ sum(duplicated(c(unique(rawframe$SFILENAME), unique(rawframe2$SFILENAME), unique
 rawframe <- rawframe %>% rbind(rawframe2) %>% rbind(rawframe3) %>% rbind(rawframe4) %>% rbind(rawframe5) %>% rbind(rawframe6) %>% rbind(rawframe7) 
 remove(rawframe2, rawframe3, rawframe4, rawframe5, rawframe6, rawframe7)
 # remove duplicated measurements
-cat("removed duplicated single measurements: ", 
+cat("removed duplicated single measurements (NTDID): ", 
 sum(duplicated(rawframe$NTDID)) # 198380
 , "\n")
 rawframe <- rawframe[duplicated(rawframe$NTDID)=="FALSE", ]
-
 ```
 ###2.1.2 Collect Q Data
 
-```{r, results='hold'}
+```{r, echo = FALSE, results='hold'}
 q_daten <- read_delim("data/DPMI_Fehler_alle_alle_201606_bis_201608_31.07.2018_adapt.csv", 
     ";", escape_double = FALSE, col_types = cols(DATUM = col_datetime(format = "%d.%m.%Y %H:%M")),
     locale = locale(encoding = "ISO-8859-1"), 
@@ -183,12 +182,12 @@ q_daten <- read_delim("data/DPMI_Fehler_alle_alle_201606_bis_201608_31.07.2018_a
 #q_daten <- q_daten[, 1:15]
 
 # remove duplicates in Q Data: 
-cat("remove duplicates in Q Data: ", sum(duplicated(q_daten)), "items \n")  
+cat("remove duplicates in Q Data: ", sum(duplicated(q_daten)), "rows \n")  
 q_daten <- q_daten[duplicated(q_daten)=="FALSE", ]
 
 # remove double entries of FID - first approach - of course information is lost - future: provide at least removed marker or move up as additional features
 q_daten <- q_daten[duplicated(q_daten$FID)=="FALSE", ]
-cat(nrow(q_daten), "items remaining\n")  
+cat(nrow(q_daten), "rows remaining\n")  
 
 ```
 
@@ -210,16 +209,17 @@ if (basic_tranform) {
   rawframe <- rawframe[rawframe$SEINHEIT != 'OE' ,]
 }
 
-cat("In total", nrow(rawframe), "single measurement points after removing Soll-Istwerte lines\n\n")  
+cat("In total", nrow(rawframe), "single measurement points (NTDID) after removing Soll-Istwerte lines\n\n")  
 
 #create a sub dataframe of numeric varialbes
 df_num <- as.data.frame (rawframe [ , sapply(rawframe,is.numeric)])
-print (paste("Dimension of dataframe of numeric variables (columns)", dim(df_num)[2]))
+print (paste("Dimension of dataframe of numeric variables (columns)", dim(df_num)[2], ":"))
+cat (names(df_num), "\n")
 
 #create a sub dataframe of non numeric varialbes
 df_not_num <- as.data.frame (rawframe [ , !sapply(rawframe,is.numeric)])
-print (paste("Dimension of dataframe of not-numeric variables (columns)", dim(df_not_num)[2]))
-
+print (paste("Dimension of dataframe of not-numeric variables (columns)", dim(df_not_num)[2], ":"))
+cat (names(df_not_num), "\n")
 ```
 
 ### 2.3.1 Boxplots and Histograms of all numerical variables
@@ -344,7 +344,7 @@ count_messw_left$pure_fail <- is.na(count_messw_left$first_pass)
 
 ## 2.6 Unsuccessful measurement cycles distribution
 
-Following two charts show the distribution of unsuccessful measurement cycles over all variants and specific per variant.
+Following two charts show the distribution of unsuccessful measurement cycles (SFILENR) over all variants and specific per variant.
 
 ```{r, results='hold'}
 hist(count_messw_left$count_fail, breaks = 100)
