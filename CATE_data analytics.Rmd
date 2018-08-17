@@ -903,10 +903,8 @@ summary(RF_mod2)
 varImpPlot(RF_mod2, type=1,main = "Variable Importance")
 varImpPlot(RF_mod2, type=2,main = "Variable Importance")
 
-
 #yhat <- predict(RF_mod, test)
 #confusionMatrix(yhat, test$SERGEBNIS)
-
 
 ```
 5,75 % fehler bei den ersten 50 (ohne varco selection)
