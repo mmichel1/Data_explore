@@ -1,7 +1,7 @@
 ---
 title: "Project: CATE"
-subtitle: "Data Exploration"
-date: 2018-08-10  
+subtitle: "Data Preparation (chapter 4) AI (chapter 5)"
+date: 2018-08-24  
 output:
   word_document: default
   pdf_document: default
@@ -44,6 +44,7 @@ Distribution of varco deviation accross all components:
 #1. Setup Environment
 Provide filenames, ~type and environment variables. 
 Source data exploration routines.
+Source model evaluation routines.
 
 ```{r, results='hide', echo = FALSE, message=FALSE}
 # Libraries 
@@ -59,6 +60,7 @@ filename4 ='A5E31281377_15062016_11072016_BGmitwenigenFehlern' # file name of th
 filename5 ='A5E32692783_25072016_15082016' # file name of the original data
 filename6 ='BD_CIB_DAC-A5E33212840_01062016_01072016' # file name of the original data
 filename7 ='CIB_DAC-A5E33212840_01072016_25072016' # file name of the original data
+filename8 ='RAWDATA_A5E02758387_semicolon' # file name of the original data
 
 endung ='.csv'            # file extension of the original data
 rel_fpath_output <- "./data/" # relative directory where outputs are stored
@@ -70,9 +72,10 @@ options(scipen=999)        # suppress exponential form of print output format
 shortnames <- TRUE         # if T change to short variable names is desired
 printpdf <- FALSE          # if printout in PDF desired
 scatterplot <- FALSE       # it T do scatterplot
-basic_tranform <- T        # do basic feature transformations
+basic_tranform <- F        # do basic feature transformations
 # ====================== Sources ===============
 source(file = "Functions_data_exploration.R")
+source(file = "Functions_modelevaluation.R")
 ```
 #2. Data Understanding
   
@@ -84,7 +87,7 @@ Read description and configuration file from "rel_fpath"!
 Save data as RDS file format 
 
 ###2.1.1 Collect ICT measurement Data
-Read 7 ICT measurement files.
+Read 8 ICT measurement files.
 
 A5E01283425_30062016_25072016.csv
 A5E02758387_01062016_25072016.csv
@@ -93,6 +96,7 @@ A5E31281377_15062016_11072016_BGmitwenigenFehlern.csv
 A5E32692783_25072016_15082016.csv
 BD_CIB_DAC-A5E33212840_01062016_01072016.csv
 CIB_DAC-A5E33212840_01072016_25072016.csv
+RAWDATA_A5E02758387_semicolon.csv         Zeitraum: 21082017_18092017
 
 ```{r, echo = FALSE}
 # ====================== R e a d   d a t a ============== alternative
@@ -112,6 +116,7 @@ if (Read_Fresh_from_File)  {
   rawframe5 <- read_data_csv(data_file_name = paste0(rel_fpath, filename5, endung))
   rawframe6 <- read_data_csv(data_file_name = paste0(rel_fpath, filename6, endung))
   rawframe7 <- read_data_csv(data_file_name = paste0(rel_fpath, filename7, endung))
+  rawframe8 <- read_data_csv(data_file_name = paste0(rel_fpath, filename8, endung))
   }
 
   saveRDS(rawframe, file = paste(rel_fpath_output , filename, ".rData"))
@@ -121,6 +126,8 @@ if (Read_Fresh_from_File)  {
   saveRDS(rawframe5, file = paste(rel_fpath_output , filename5, ".rData5"))
   saveRDS(rawframe6, file = paste(rel_fpath_output , filename6, ".rData6"))
   saveRDS(rawframe7, file = paste(rel_fpath_output , filename7, ".rData7"))
+  saveRDS(rawframe8, file = paste(rel_fpath_output , filename8, ".rData8"))
+  
   print("...Data saved in RData file")
 } else { # Read_Fresh_from_File gleich FALSE
   rawframe <- readRDS(file = paste(rel_fpath_output , filename, ".rData"))
@@ -130,6 +137,7 @@ if (Read_Fresh_from_File)  {
   rawframe5 <- readRDS(file = paste(rel_fpath_output , filename5, ".rData5"))
   rawframe6 <- readRDS(file = paste(rel_fpath_output , filename6, ".rData6"))
   rawframe7 <- readRDS(file = paste(rel_fpath_output , filename7, ".rData7"))
+  rawframe8 <- readRDS(file = paste(rel_fpath_output , filename8, ".rData8"))
 }
 #--- create / read data control file ---
 if (file.exists(path = paste0(rel_fpath, filename, '_data_control.xlsx')))
@@ -144,7 +152,8 @@ rawframe3 <- rawframe3[ ,datadesc$`Clean Data Frame`!="exclude"]
 rawframe4 <- rawframe4[ ,datadesc$`Clean Data Frame`!="exclude"]  
 rawframe5 <- rawframe5[ ,datadesc$`Clean Data Frame`!="exclude"]  
 rawframe6 <- rawframe6[ ,datadesc$`Clean Data Frame`!="exclude"]  
-rawframe7 <- rawframe7[ ,datadesc$`Clean Data Frame`!="exclude"]  
+rawframe7 <- rawframe7[ ,datadesc$`Clean Data Frame`!="exclude"]
+rawframe8 <- rawframe8[ ,datadesc$`Clean Data Frame`!="exclude"]  
 
 # write control file if not present
 if (!file.exists(path = paste0(rel_fpath, filename, '_data_control.xlsx')))  {
@@ -161,11 +170,11 @@ sum(duplicated(c(unique(rawframe$SFILENAME), unique(rawframe2$SFILENAME), unique
 , "\n")
 
 #combine to one huge frame
-rawframe <- rawframe %>% rbind(rawframe2) %>% rbind(rawframe3) %>% rbind(rawframe4) %>% rbind(rawframe5) %>% rbind(rawframe6) %>% rbind(rawframe7) 
-remove(rawframe2, rawframe3, rawframe4, rawframe5, rawframe6, rawframe7)
+rawframe <- rawframe %>% rbind(rawframe2) %>% rbind(rawframe3) %>% rbind(rawframe4) %>% rbind(rawframe5) %>% rbind(rawframe6) %>% rbind(rawframe7) %>% rbind(rawframe8) 
+remove(rawframe2, rawframe3, rawframe4, rawframe5, rawframe6, rawframe7, rawframe8)
 # remove duplicated measurements
 cat("removed duplicated single measurements (NTDID): ", 
-sum(duplicated(rawframe$NTDID)) # 198380
+sum(duplicated(rawframe$NTDID)) # 202976
 , "\n")
 rawframe <- rawframe[duplicated(rawframe$NTDID)=="FALSE", ]
 
@@ -370,19 +379,31 @@ NTDID has also gaps independent from NORDER, can differ from FID to FID
 rawframe$Ix <- 1:nrow(rawframe)
 
 #rawframe$Ix_rel <- 0
-SFILENR_help <- rawframe %>% group_by(SFILENAME) %>% summarize(SARTIKELNR=unique(SARTIKELNR), Ix_rel = min(Ix))
+#A5E02758387 Isolation Test and Connection Test leads to violation because DTU and DTO are 0.0 while DMW ist constantly 1.0
+#--> eliminate those otherwise the 2 delivered files do not fit together
+SFILENR_help <- rawframe %>% filter(SMMNR!='IsolationTest', SMMNR!='ConnectionTest') %>%  group_by(SFILENAME) %>% summarize(SARTIKELNR=unique(SARTIKELNR), Ix_rel = min(Ix))
 rawframe <- left_join(rawframe, SFILENR_help, by = c("SFILENAME", "SARTIKELNR"))
 remove(SFILENR_help)
 rawframe$Ix_rel <- rawframe$Ix - rawframe$Ix_rel+1
 
 rawframe$viol_id <- NA
-for (i in 1:nrow(rawframe)) {
-  if ((rawframe$DMW[i]>rawframe$DTO[i])|(rawframe$DMW[i]<rawframe$DTU[i]))
-    rawframe$viol_id[i] <- rawframe$Ix_rel[i] 
-}
+#for (i in 1:nrow(rawframe)) {
+#  if ((rawframe$DMW[i]>rawframe$DTO[i])|(rawframe$DMW[i]<rawframe$DTU[i])) {
+#    rawframe$viol_id[i] <- rawframe$Ix_rel[i]
+#    }
+#    if (i %% 10000 == 0) {print (i)}
+#}
+# loop wir ab 3 Mio. Interationen äußerst langsam!! insgesamte Dauer über 1/2 Stunde
 
 # remove dashes in SMMNR text
 rawframe$SMMNR <- str_replace_all(rawframe$SMMNR, "([[:punct:]])|\\s+", "_")
+
+#saveRDS(rawframe, file = paste(rel_fpath_output, "rawframe.rData"))
+```
+```{r, echo = FALSE}
+
+rawframe <- readRDS(file = paste(rel_fpath_output , "rawframe.rData")) # to shorten process before
+
 ```
 
 
@@ -424,7 +445,7 @@ head(SID_table)
 several joins of Q Data, pseudo error and label qualification from Q Data.
 Label qualifiation means those measurements where ICT measurement is before a repair entry.
 
-```{r, results='hold'}
+```{r, echo = FALSE, results='hold'}
 #SID_table_full <- SID_table %>% full_join (q_daten, by = c("SID" = "FID")) 
 SID_tableinner <- SID_table %>% inner_join (q_daten, by = c("SID" = "FID")) 
 SID_table <- SID_table %>% left_join (q_daten, by = c("SID" = "FID")) 
@@ -444,7 +465,7 @@ cat("FID / boards where repair is after ICT measurement (error detected in ICT a
 
 #SID_table_full$pseudo <- !is.na(SID_table_full$firstfail_dt) & !is.na(SID_table_full$firstpass_dt)  # 231 pseudo errors
 # pseudo label: es gibt mindestens einen fail cycle und mindestens ein pass cycle und kein real error vorhanden
-SID_table$pseudo <- !is.na(SID_table$firstfail_dt) & !is.na(SID_table$firstpass_dt) & is.na(SID_table$BEFUND_clean)  # 227 pseudo errors
+SID_table$pseudo <- !is.na(SID_table$firstfail_dt) & !is.na(SID_table$firstpass_dt) & is.na(SID_table$BEFUND_clean)  # 256 pseudo errors
 cat("Nr. of pseudo errors detected: ", sum(SID_table$pseudo), "\n")  
 
 # remove empty columns after left_join
@@ -454,7 +475,7 @@ SID_table <- select(SID_table, -c(STATUS, BEFUND_FBG, ZNR_BE, BE_KURZTEXT, BKZ_B
 How many FID - pure fails are in Q Data? 
 Following tables show 'pure' fails dependent on board variants and dependent on type of Prüfstufe
 
-```{r, results='hold'}
+```{r, echo = FALSE, results='hold'}
 cat("distribution of fails in Q Data over variants/pruefstufen\n")  
 pure_fail_Q_variant <- q_daten %>% group_by(OBERSTUFE) %>% summarize(count=n())
 print(pure_fail_Q_variant)
@@ -465,7 +486,7 @@ print(pure_fail_Q_pruefst)
 
 How are the FID - pure fails distributed over the variants in ICT measurement Data?
 
-```{r, results='hold'}
+```{r, echo = FALSE, results='hold'}
 # only fails: 6490 - most of them from Q data  (6475 - 32 innerjoin + 47 fail related ICT)
 # sum(is.na(SID_table_full$firstpass_dt))
 
@@ -483,7 +504,7 @@ SID_table$pure_fail <- is.na(SID_table$firstpass_dt)
 
 Number of pseudo errors per variant
 
-```{r, results='hold'}
+```{r, echo = FALSE, results='hold'}
 count_pseudo <- SID_table %>% filter(pseudo==TRUE) %>% group_by(SARTIKELNR) %>% summarize(count=n())
 print(count_pseudo)
 ggplot(data = SID_table, mapping = aes(x = pseudo)) +  
@@ -502,7 +523,7 @@ Generation of measurement cycle/ SFILENAME related view:
 - time of failing measurement cycle
 - nr. of threshold violations per cycle
 
-```{r, results='hold', message=FALSE, warning=FALSE}
+```{r, echo = FALSE, results='hold', message=FALSE, warning=FALSE}
 SFILENR_table <- rawframe %>% group_by(SFILENAME) %>% summarize(count=n(), SARTIKELNR=unique(SARTIKELNR), SID=unique(SID),
                                                                 DTDATUM=unique(DTDATUM))
 SFILENR_table <- select(SFILENR_table, SARTIKELNR, SID, everything())
@@ -518,12 +539,16 @@ remove(SFILENR_table_pass, SFILENR_table_fail)
 #head(SFILENR_table)
 
 # Verteilung der Abbrüche bzw. pass
+#SFILENR_subtable <- filter(SFILENR_table, SARTIKELNR=='A5E02758387')
+#hist(SFILENR_subtable$count, breaks = 100)
 hist(SFILENR_table$count, breaks = 100)
+
 ggplot(data = SFILENR_table, mapping = aes(x = count)) +  
          geom_histogram(binwidth = 5) +
 #         coord_cartesian(xlim = c(0, 1000)) +
          facet_wrap(~ SARTIKELNR, ncol = 2, scales = "free") +
          ggtitle("Nr. of measurement counts")
+
 ggplot(data = SFILENR_table, mapping = aes(x = count_fail)) +  
          geom_histogram(binwidth = 5) +
 #         coord_cartesian(xlim = c(0, 1000)) +
@@ -534,7 +559,9 @@ ggplot(data = SFILENR_table, mapping = aes(x = count_pass)) +
          geom_histogram(binwidth = 10) +
 #         coord_cartesian(xlim = c(0, 1000)) +
          facet_wrap(~ SARTIKELNR, ncol = 2, scales = "free_y") +
-         ggtitle("Nr. of measurement counts when passed") 
+         ggtitle("Nr. of measurement counts when passed")
+
+#SFILENR_subtable <- filter(SFILENR_table, SARTIKELNR=='A5E02758387') %>% arrange(desc(count))
 
 ```
 Histogram of SFILENR_table$count:
@@ -552,28 +579,51 @@ A5E01283425 shows nicht ganzzahlige vielfache von one measurement cycles measure
 
 Distribution of threshold violations per variant:
 
-```{r, results='hold', message=FALSE, warning=FALSE}
+```{r, echo = FALSE, results='hold', message=FALSE, warning=FALSE}
 # viol_id distribution
 ggplot(data = rawframe, mapping = aes(x = viol_id)) +  
          geom_histogram(binwidth = 1) +
 #         coord_cartesian(xlim = c(0, 1000)) +
          facet_wrap(~ SARTIKELNR, ncol = 2, scales = "free")+
          ggtitle("Distribution of threshold violations per variant") 
-```         
 
+ggplot(data = filter(rawframe, SARTIKELNR=='A5E02758387', SMMNR!='IsolationTest', SMMNR!='ConnectionTest', SID != 'T-J86414591'), mapping = aes(x = viol_id)) +  
+         geom_histogram(binwidth = 1) +
+         ggtitle("Distribution of threshold violations for A5E02758387") 
+
+rawframe_sub <- rawframe %>% filter(SARTIKELNR=='A5E02758387', SMMNR!='IsolationTest', SMMNR!='ConnectionTest', !is.na(viol_id), SID != 'T-J86414591') %>% group_by (SMMNR, viol_id, SID) %>% count() %>% arrange(desc(n))
+head(rawframe_sub,50)
+
+```         
+A5E02758387 Isolation Test and Connection Test leads to violation because DTU and DTO are 0.0 while DMW ist constantly 1.0
+--> eliminate those
+Nevertheless leads to PASS!?  
+--> working assumption for analytics: remove those measurements (one SCOMB_PL)
+Board T-J86414591 shows > 400 violations
+--> eliminate T-J86414591
 
 Trend of theshold violations per variant:
 
-```{r, results='hold', message=FALSE, warning=FALSE}
+```{r, echo = FALSE, results='hold', message=FALSE, warning=FALSE}
 #  geom_point(size=2, shape=23)
 ggplot(data = SFILENR_table, mapping = aes(x = time_fail, y = limit_viol)) +  
          geom_point() +
          facet_wrap(~ SARTIKELNR, ncol = 2, scales = "free")+
          ggtitle("Trend of theshold violations per variant") 
+
+ggplot(data = filter(SFILENR_table, SARTIKELNR == 'A5E02758387', limit_viol < 100 ), mapping = aes(x = time_fail, y = limit_viol)) +  
+         geom_point() +
+         ggtitle("Trend of theshold violations for A5E02758387") 
+
+#rawframe_sub <- rawframe %>% filter(SARTIKELNR=='A5E02758387', SMMNR!='IsolationTest', SMMNR!='ConnectionTest') %>% arrange(desc(viol_id))
+
+#SFILENR_subtable <- SFILENR_table %>% filter(SARTIKELNR=='A5E02758387', SID=='T-J86414591') %>% arrange(desc(limit_viol))
 ```         
 
 Trend of theshold violations per variant facet_wrap:
-Outlier caused by two A5E33212840 boards: T-H76000335, T-H66267724 (one pseudo, one pure fail/no repair info) - specific background? (most of the values 0,000000000000 or 4.294.967.295,0 - measurement value range of equipment?)
+Outlier caused by two A5E33212840 boards: T-H76000335, T-H66267724 (one pseudo, one pure fail/no repair info)
+Outlier caused by A5E02758387 board: T-J8641459 (pseudo, first measurement cycle was aborted)
+- specific background? (most of the values 0,000000000000 or 4.294.967.295,0 - measurement value range of equipment?)
 --> working assumption for analytics: remove outlier
 
 ## 3.5 Save Result Tables 
@@ -608,6 +658,7 @@ Violation distribution on the board - Facetwrap:
 A5E32692783 component ICT_COMET001A5E32692783170.170.2_Voltage_21 with 830 violations! - Reason:
 DMW   DTU  DTO
 -45    0   -45
+
 Nevertheless leads to PASS!?  
 --> working assumption for analytics: remove those measurements (one SCOMB_PL)
 
@@ -615,13 +666,19 @@ Nevertheless leads to PASS!?
 
 ## 3.7 Trend of measurement cycle failures over the time
 
-```{r, results='hold'}
+```{r, echo = FALSE, results='hold'}
 messw_fail_trend <- rawframe %>% filter(SERGEBNIS=='FAIL') %>% group_by(SFILENAME) %>% summarize(count_fail=n(),
                                                                                            time_fail=unique(DTDATUM), SARTIKELNR = unique(SARTIKELNR))
 ggplot(data = messw_fail_trend, mapping = aes(x = time_fail)) +
          geom_histogram(binwidth = 10000)+
   facet_wrap(~SARTIKELNR, ncol = 2, scales = "free")+
          ggtitle("Trend of measurement cycle failures per variant")
+
+# repeat plot for A5E02758387 with different binwidth
+ggplot(data = filter(messw_fail_trend, SARTIKELNR=='A5E02758387'), mapping = aes(x = time_fail)) +
+         geom_histogram(binwidth = 100000)+
+  #facet_wrap(~SARTIKELNR, ncol = 2, scales = "free")+
+         ggtitle("Trend of measurement cycle failures A5E02758387")
 ```
 
 Trend diagrams of measurement cycle failures how strong peaks with high number of failures. 
@@ -634,9 +691,10 @@ Varco hypothesis: degree of pollution of a single component can be explained by 
 When calculating the varco only components measurements must be considered where the component was not responsible for the fail of the board!
 
 ```{r, echo = FALSE, warning=FALSE}
-#Varco Berechnung pro Bauteil, variantenbezogen, ohne urs?chliche 
-board_view <- rawframe %>% filter(is.na(viol_id)) %>% group_by(SARTIKELNR, SMMNR, SERGEBNIS) %>% summarize(count=n(), limit_viol=sum((DMW>DTO)|(DMW<DTU)), DMW_mean=mean(DMW), DMW_sd=sd(DMW), Varco=DMW_sd/DMW_mean)
-#%>% arrange(limit_viol)
+#Varco Berechnung pro Bauteil, variantenbezogen, ohne ursächliche 
+board_view <- rawframe %>% filter(is.na(viol_id)) %>% group_by(SARTIKELNR, SMMNR, SERGEBNIS) %>% summarize(count=n(), DMW_mean=mean(DMW), DMW_sd=sd(DMW), Varco=DMW_sd/DMW_mean)
+# limit_viol=sum((DMW>DTO)|(DMW<DTU)) macht keinen Sinn, da ausgefiltert 
+#%>% arrange(desc(limit_viol))
 
 #calculate Varco PASS/FAIL ratio - 1 
 board_view$varco_deviation <- 0
@@ -664,12 +722,13 @@ a) accross all ARTIKELNR (first 50)
 b) per ARTIKELNR (first 50)
 ```{r, echo = FALSE}
 #Visualize Varco wrt Pass and Fail
-head (board_view, 50)
-head (board_view[board_view$SARTIKELNR=="A5E01283425",], 50)
-head (board_view[board_view$SARTIKELNR=="A5E32692783",], 50)
-head (board_view[board_view$SARTIKELNR=="A5E02758387",], 50)
-head (board_view[board_view$SARTIKELNR=="A5E32692783",], 50)
-head (board_view[board_view$SARTIKELNR=="A5E33212840",], 50)
+board_view %>% select(-c(count, row_nr)) %>% top_n(50, varco_deviation)
+board_view %>% select(-c(count, row_nr)) %>% filter(SARTIKELNR=="A5E01283425") %>% top_n(50, varco_deviation)
+board_view %>% select(-c(count, row_nr)) %>% filter(SARTIKELNR=="A5E32692783") %>% top_n(50, varco_deviation)
+board_view %>% select(-c(count, row_nr)) %>% filter(SARTIKELNR=="A5E02758387") %>% top_n(50, varco_deviation)
+board_view %>% select(-c(count, row_nr)) %>% filter(SARTIKELNR=="A5E32692783") %>% top_n(50, varco_deviation)
+board_view %>% select(-c(count, row_nr)) %>% filter(SARTIKELNR=="A5E33212840") %>% top_n(50, varco_deviation)
+
 ```
 Plots of varco deviation for a significant component C705 at A5E02758387
 A) DMW variation in time per PASS, FAIL
@@ -683,6 +742,7 @@ ggplot(data = spec_bauteil[spec_bauteil$SERGEBNIS=="PASS",], aes(x = DTDATUM)) +
           geom_line(aes(y = DMW)) +
           geom_line(aes(y = DTU), colour="red") +
           geom_line(aes(y = DTO), colour="red")+
+          coord_cartesian(ylim = c(0.0000000009, 0.0000000014))+
           ggtitle ("trend for C705 on A5E02758387 - PASS cycles")
 
 #Messwerte im Zeitvertlauf f?r FAIL
@@ -690,6 +750,7 @@ ggplot(data = spec_bauteil[spec_bauteil$SERGEBNIS=="FAIL",], aes(x = DTDATUM)) +
           geom_line(aes(y = DMW)) +
           geom_line(aes(y = DTU), colour="red") +
           geom_line(aes(y = DTO), colour="red")+
+          coord_cartesian(ylim = c(0.0000000009, 0.0000000014))+
           ggtitle ("trend for C705 on A5E02758387 - FAIL cycles")
 
 #Normierung des Messwertintervalls [DTU, DTO] auf [-1;1]
@@ -706,7 +767,17 @@ ggplot(data = spec_bauteil[spec_bauteil$SERGEBNIS=="FAIL",], mapping = aes(x = D
          geom_histogram(binwidth = 0.05) +
          coord_cartesian(xlim = c(-2, 2))+
           ggtitle ("distribution for C705 on A5E02758387 - FAIL cycles")
+
+top50_varco_deviation <- board_view [1:100,] %>% filter(SARTIKELNR=="A5E02758387") %>% top_n(100, varco_deviation) %>% select(SMMNR, varco_deviation)
+SMMNR_subtable <- SMMNR_table %>% filter(SARTIKELNR=="A5E02758387") %>% filter (SMMNR %in%  top50_varco_deviation$SMMNR)
+ggplot(data = SMMNR_subtable) +
+  geom_point(mapping = aes(x = X_loc, y = Y_loc, colour = count_viol), size=0.8) +
+#  scale_fill_gradientn(colours=c("black","yellow","red"), breaks=c(0,30,50), labels=format(c("0","30","50")) ) +
+         ggtitle("Location of top 50 varco_deviation components on A5E02758387")
 ```
+
+
+
 Distribution of varco deviation accross all components orderd by magnitude
 ```{r, echo = FALSE}
 #Verteilung der Varco PASS/FAIL difference nach Baugruppen absteigend
@@ -714,37 +785,46 @@ ggplot(data = board_view, aes(x = row_nr)) +
           geom_line(aes(y = varco_deviation)) +
           ggtitle ("Varco deviation accross all components")
 
+#Auswahl Baugruppe A5E02758387
+board_view <- board_view[board_view$SARTIKELNR=="A5E02758387",]
+board_view$row_nr <- 0
+for (i in 1:nrow(board_view)) {
+    board_view$row_nr[i] <- i
+}
 ggplot(data = board_view, aes(x = row_nr)) +
           geom_line(aes(y = varco_deviation)) +
           coord_cartesian(ylim = c(5,0)) +
-          ggtitle ("Varco deviation accross all components")
+          ggtitle ("Varco deviation accross all comp. A5E02758387, y-axis fixed [0;5]")
 ```
 
 Distribution of varco deviation accross all components:
 --> Data analytics will have to focus on those components which show high variation in the FAIL measurement cycles.
 
 
-# 4 Data Preparation and Modeling
+# 4 Data preparation and modeling
 
 # 4.1 Individual measurements as features  
 
 Remove doubled PASS measurements
+Remove SMMNR "Isolation Test" and "Connection Test"
 ```{r, echo = FALSE}
 # restrict on A5E02758387
 rawframe87 <- rawframe[rawframe$SARTIKELNR=="A5E02758387", ]
 # for A5E02758387 only 2 SID with double measurements PASS - taken from SFILENR_table below: 
 # T-H76109604 SamAD390650PC180720160650280.erg
 # T-H76109585 SamAD390650PC180720160700000.erg - duplicates characterized by SFILENAME and NORDER
-rawframe87 <- rawframe87 %>% distinct(SFILENAME, NORDER,  .keep_all = TRUE)
+# Eliminierung der SMMNR für "ConnectionTest" und "IsolationTest" müsste möglicherweise schon früher bei 3.1 erfolgen 
+rawframe87 <- rawframe87 %>% distinct(SFILENAME, NORDER,  .keep_all = TRUE) %>% filter (SMMNR != "ConnectionTest", SMMNR != "IsolationTest", SID != 'T-J86414591')
+
 saveRDS(rawframe87, file = paste(rel_fpath_output, "A5E02758387.rData87"))
 ```
 
-Read rawframe for A5E02758387     
+Read rawframe for A5E02758387 (focus for analytical models)     
 ```{r, echo = FALSE}
 rawframe87 <- readRDS(file = paste(rel_fpath_output , "A5E02758387.rData87")) # to shorten process before
 ```
 
-Transpose so each measurement is a predictor    
+Transpose so each measurement is a predictor --> 753 predictors   
 ```{r, echo = FALSE, message=FALSE, warning=FALSE}
 rawframe_87small <- data.frame(select(rawframe87, -c(NTDID, SEINHEIT, DTU, DTO, NORDER, SCOMB_PL, Ix, Ix_rel, viol_id))) # Ausschlüsse sind spezifisch für die Messung - würden weitere features erzeugen
 # eine Zeile bezieht sich auf einen Messzyklus SFILENAME
@@ -754,7 +834,9 @@ frame87_transpose <- rawframe_87small %>% spread(SMMNR, DMW) # spread auf Basis 
 # --> habe deswegen in rawframe in SMMNR dash durch underscore ersetzt! - in 3.1
 ```
 
-Provide further labels to SID table
+# 4.2 Provide further labels to SID table
+
+1st pass scenario / 2nd pass scenario / combined 1st und 2nd pas scenario
 ```{r, echo = FALSE}
 # provide further labels - could also be moved to SID_table section (3.2/3.3) above
 # firstpass_dt: datum des ersten pass cycles vs. firstpass_scen: das FPY scenario
@@ -762,6 +844,8 @@ Provide further labels to SID table
 SID_table$firstpass_scen <- !is.na(SID_table$firstpass_dt) & is.na(SID_table$cycle_fail)
 # flag für 2nd pass scenario: es handelt sich um ein pseudo error scenario mit genau einem fail cycle
 SID_table$secondpass_scen <- SID_table$pseudo & (SID_table$cycle_fail==1)  
+# flag für 1st und 2nd pas scenario: beim ersten oder zweiten ICT bestanden, d.h. man kann sich den 2. Test sparen
+SID_table$firstsecondpass_scen <- SID_table$firstpass_scen | SID_table$secondpass_scen
 
 # flag für x-te pass scenario, if cascade due to NA
 SID_table$xpass <- NA
@@ -771,13 +855,13 @@ for (i in 1:nrow(SID_table))  {
       SID_table$xpass[i] <- SID_table$cycle_fail[i]
   }
 }
-
 ```
 
-generate clean DF for R - Startpunkt für neuen modelldurchlauf
+# 4.3 Generate clean DF for R
 ```{r, echo = FALSE}
 # hier noch keine Kombination mit weiteren labels 
-frame87_clean <- frame87_transpose
+# Eliminierung von Datensätzen mit NA Werten (nicht komplett durchgelaufene Messzyklen)
+frame87_clean <- frame87_transpose %>% na.omit()
 
 ```
 
@@ -793,68 +877,193 @@ write.table(frame87_KNIME,       # write resulting data into CSV file with tabst
 remove(frame87_KNIME)
 ```
 
-normalize clean data frame (KNIME hatte sogar bei log reg normalisierung angemahnt)
+select appropriate fields in SID_table and join with clean DF
 ```{r, echo = FALSE}
+# combine with clean DF - innerjoin uses from SID_table only relevant info/labels - then neu sortieren
+frame87_clean <- frame87_clean %>% inner_join(select(SID_table, c(SID, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass))) %>% select(c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass) , everything())
+
+```
+
+number of lable categories --> need for oversampling visible (topic for next sprint)
+portion of errors: pseudo 10,5%, firstpass_scen 89,5%, secondpass_scen 6,4%, firstsecond_scen 95,9%, xpass 4,1%
+```{r, echo = FALSE}
+frame87_clean %>% group_by(SARTIKELNR, BEFUND_clean) %>% summarize(count=n())
+frame87_clean %>% group_by(SARTIKELNR, pseudo) %>% summarize(count=n())
+frame87_clean %>% group_by(SARTIKELNR, firstpass_scen) %>% summarize(count=n())
+frame87_clean %>% group_by(SARTIKELNR, secondpass_scen) %>% summarize(count=n())
+frame87_clean %>% group_by(SARTIKELNR, firstsecondpass_scen) %>% summarize(count=n())
+frame87_clean %>% group_by(SARTIKELNR, xpass) %>% summarize(count=n())
+```
+
+set SERGEBNIS to 0,1  -   1 is PASS or TRUE
+```{r, echo = FALSE}
+frame87_clean$SERGEBNIS <- as.numeric(frame87_clean$SERGEBNIS)-1  # 1 is PASS
+frame87_clean$secondpass_scen <- as.numeric(frame87_clean$secondpass_scen)  # 1 is TRUE
+frame87_clean$firstsecondpass_scen <- as.numeric(frame87_clean$firstsecondpass_scen)  # 1 is TRUE
+```
+
+handling of outlieres 
+5 times IQR considered as extreme outliers --> adjust estreme outier to value of extrem lower/upper whisker of 5 times IQR
+```{r, echo = FALSE}
+#boxplot(frame87_clean$R1211)
+#boxplot.stats(frame87_clean$R1211, coef = 1.5)
+frame87_cleanoutl <- frame87_clean # alternative dataframe which captures adjusted outliers
+
+for (j in 15:ncol(frame87_cleanoutl)) {
+  # statt 1.5 hier 5-facher IQR whisker
+  bp <- boxplot.stats(frame87_cleanoutl[,j], coef = 5, do.conf = FALSE, do.out = FALSE)
+  ext_wh <- c(bp$stats[1], bp$stats[5])
+  for (i in 1:nrow(frame87_cleanoutl)) {
+    if (frame87_cleanoutl[i,j] < ext_wh[1]) frame87_cleanoutl[i,j] <- ext_wh[1]
+    if (frame87_cleanoutl[i,j] > ext_wh[2]) frame87_cleanoutl[i,j] <- ext_wh[2]
+  }
+# mutate funktioniert nicht mit Indizierung!
+}
+#boxplot(frame87_cleanoutl$R1211, coef = 1.5)
+#boxplot.stats(frame87_cleanoutl$R1211)
+```
+
+show first 20 colums of unnormalized and clean data frame
+```{r, echo = FALSE}
+head(frame87_cleanoutl[,1:20])
+```
+
+normalize clean data frame
+```{r, echo = FALSE}
+# (KNIME hatte sogar bei log reg normalisierung angemahnt)
 # optional: normalize clean data
 fn_norm  = function(x) { return ( (x-min(x)) / (max(x) - min(x)) ) }  #define the rescaling function
 # Kombination von nicht normierbaren Anfangsspalten mit normierbarem rest
-frame87_clean = cbind.data.frame(frame87_clean[ ,(1:8)], lapply(frame87_clean[ ,-(1:8)], fn_norm)) 
+
+frame87_clean = cbind.data.frame(frame87_clean[ ,(1:14)], lapply(frame87_clean[ ,-(1:14)], fn_norm)) # outlier unbehandelt
+frame87_cleanoutl = cbind.data.frame(frame87_cleanoutl[ ,(1:14)], lapply(frame87_cleanoutl[ ,-(1:14)], fn_norm)) # outlier über 5-fach IQR angepasst
+```
+show first 20 colums of normalized and clean data frame
+```{r, echo = FALSE}
+head(frame87_cleanoutl[,1:20])
+```
+# 4.4. Feature reduction
+
+PCA - principal component analysis (usage for feature reduction)
+```{r, echo = FALSE}
+data_pca <- prcomp (select(frame87_cleanoutl, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass)), center=TRUE, scale = TRUE)
+print(summary (data_pca))
+#print(data_pca$rotation)
+plot (cumsum((data_pca$sdev)^2/sum((data_pca$sdev)^2)),
+      xlab="PCA components", ylab="Cumulative Proportion of variance")
+#head(data_pca$x[,1:50])
+
+frame87_cleanpca = cbind.data.frame(frame87_cleanoutl[ ,(1:14)], data_pca$x[ ,(1:50)]) # take first 50 PCAs
+frame87_cleanpca = cbind.data.frame(frame87_cleanpca [ ,(1:14)], lapply(frame87_cleanpca[ ,-(1:14)], fn_norm)) 
 ```
 
 restrict clean data to first 50 most significant predictors based on VarCo investigation
 ```{r, echo = FALSE}
 # get significant predictors for A5E02758387, starting with 100 entries, which are doubled so 50 remain
 # predictors with index 1:100 are most significant, e.g. 1400:1500 are from the non significant tail
+frame87_clean <- frame87_cleanoutl
 sign_pred_list_87 <- unique(board_view$SMMNR[board_view$SARTIKELNR=="A5E02758387"][1:100])
-frame87_clean <- cbind(frame87_clean[ ,1:8], select(frame87_clean, sign_pred_list_87))
+frame87_clean <- cbind(frame87_clean[ ,1:14], select(frame87_clean, sign_pred_list_87))
 ```
 
-
+split into train (70%) and test (30%)
 ```{r, echo = FALSE}
+#frame87_clean <- frame87_cleanpca # if PCA used for feature reduction
 # random splitting
 NR <- nrow(frame87_clean)
-#set.seed(1234567)
+
+set.seed(123456789)
 train_index <- sample(NR, NR * 0.7)       # %-Satz der Trainingsdaten 
 train <- frame87_clean[train_index, ]#-(1:1)]       # Zufallsvektor definiert die Trainingsdaten
 test <- frame87_clean[-train_index, ]#-(1:1)]       # ..das Komplement die Testdaten
+
+cat("Dimension of train data: ", dim(train))
+cat("Dimension of test data: ", dim(test))
 ```
 
-# 4.2 AI - simple try predicting FAIL/PASS 
+# 5 AI
 
-Logistic regression
+# 5.1 AI - simple try predicting FAIL/PASS 
+
+# 5.1.1 Logistic regression
 ```{r, echo = FALSE}
 # linear model
 #log_mod <- glm(SERGEBNIS ~. -time_pass -firstpass_scen -lastpass_dt -label_indic -pseudo -firstpass_scen -secondpass_scen -xpass, train,
 #              family=binomial(link="logit"))
-
-frame87_clean$SERGEBNIS <- as.numeric(frame87_clean$SERGEBNIS)-1  # 1 is PASS
-
-train <- frame87_clean # mal ohne split, nur model fit
-
 # aus irgendeinem Grund funktioniert der Ausschluss der Variablen über minus in formula - wie bei RF - nicht
-log_mod <- glm(SERGEBNIS ~. , select(train, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR)),
-              family=binomial(link="logit"))
-summary(log_mod)
+
+#train <- frame87_clean # mal ohne split, nur model fit
+#train$SERGEBNIS <- as.factor(train$SERGEBNIS)
+
+#log_mod <- glm(SERGEBNIS ~. , select(train, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen)), family=binomial(link="logit"))
+#summary(log_mod)
+
 #confint(log_mod)
 #calculate odds
-print ("Odds ratios:")
-round(exp(coefficients(log_mod)),6) #result is odds ratio
-
-#yhat <- predict.glm(log_mod, test)
-
+#print ("Odds ratios:")
+#round(exp(coefficients(log_mod)),6) #result is odds ratio
 ```
 glm Algorithmus konvergiert nicht bei allen predictoren, weil Anzahl predictors zu hoch.
 bei Varco reduced set klappt die Konvergenz
 
-Random Forest. Sitches partial trees so nr. of predictors could be covered.
+stepwise regression feature selection
+```{r, echo = FALSE}
+#train <- frame87_clean   # mal ohne split, nur model fit
+
+null <- glm(SERGEBNIS ~1 , select(train, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass)), family=binomial(link="logit"))
+
+full <- glm(SERGEBNIS ~. , select(train, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass)), family=binomial(link="logit"))
+
+log_mod <- step(null, scope = list(upper=full), data=train, direction="both")
+```
+```{r, echo = FALSE}
+summary(log_mod)
+
+#calculate odds
+print ("Odds ratios:")
+round(exp(coefficients(log_mod)),6) #result is odds ratio
+```
+model evaluation
+
+prediction  
+```{r, echo = FALSE}
+library(e1071)
+# Evaluation with test data set
+yhat <- predict.glm(log_mod, select(test, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass)))
+
+#x <- runif(463, 0.0, 1.0) # test mit Zufallsfariable
+#yhat_label <- as.factor(prob_to_class(x, 0.105))
+# result is vector of mean values of the resprective nodes
+yhat_prob <- fn_norm(yhat)        # normalize predicte values
+yhat_label <- as.factor(prob_to_class(yhat_prob, 0.3))
+
+# Confusion matrix
+ytrue <- test$SERGEBNIS
+caret::confusionMatrix(yhat_label, as.factor(ytrue), positive="1")
+
+# Lift / ROC Chart for test data
+par(mfrow=c(1,2))
+Lift_Chart (yhat_prob, ytrue, "Lift Logistic Regression", "black")
+ROC_Chart (yhat_prob, ytrue, "ROC Logistic Regression")
+```
+location of predictors on the board (visual clustering)
+
+```{r, echo = FALSE, message=FALSE, warning=FALSE}
+SMMNR_subtable <- SMMNR_table %>% filter(SARTIKELNR=="A5E02758387") %>% filter (SMMNR %in% names(log_mod$coefficients))
+ggplot(data = SMMNR_subtable) +
+  geom_point(mapping = aes(x = X_loc, y = Y_loc, colour = count_viol), size=0.8) +
+#  scale_fill_gradientn(colours=c("black","yellow","red"), breaks=c(0,30,50), labels=format(c("0","30","50")) ) +
+         ggtitle("Location of predictors on the board A5E02758387")
+```
+
+# 5.1.2 Random Forest. Sitches partial trees so nr. of predictors could be covered.
 ```{r, echo = FALSE}
 # RF model https://datascienceplus.com/random-forests-in-r/
 library(randomForest)
 library(caret)
-train <- frame87_clean   # mal ohne split, nur model fit
+#train <- frame87_clean  # mal ohne split, nur model fit
 
-RF_mod <- randomForest(SERGEBNIS ~. -NTHID -SFILENAME -DTINSERT -SID -SARTIKELNR -DTDATUM -SPLATZNR, train, 
-                              importance=TRUE, ntree=500)
+RF_mod <- randomForest(as.factor(SERGEBNIS) ~., select(test, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass)),importance=TRUE, ntree=500)
 RF_mod
 plot(RF_mod)
 summary(RF_mod)
@@ -862,40 +1071,91 @@ summary(RF_mod)
 varImpPlot(RF_mod, type=1,main = "Variable Importance")
 varImpPlot(RF_mod, type=2,main = "Variable Importance")
 
-#yhat <- predict(RF_mod, test)
-#confusionMatrix(yhat, test$SERGEBNIS)
-
-
+as.data.frame(RF_mod$importance) %>% mutate (Component = row.names(as.data.frame(RF_mod$importance))) %>% select(-c("0","1")) %>% arrange(desc(MeanDecreaseAccuracy))
 ```
 error rate 1,8% differiert nicht sonderlich zwischen ganzem set der Variablen und den 50 wichtigsten (per Varco ausgewälten) 
-bei Variablen aus dem 'VarCo' Schwanz steigt die error rate auf 5,83%
+bei Variablen aus dem 'VarCo' Schwanz steigt die error rate
 
-# 4.3 AI - predicting second FAIL/PASS 
-
-Select appropriate fields in SID_table and join with clean DF
+Model evaluation
 ```{r, echo = FALSE}
-# combine with clean DF - innerjoin uses from SID_table only relevant info/labels - then neu sortieren
-frame87_clean <- frame87_clean %>% inner_join(select(SID_table, c(SID, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen))) %>% select(c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen) , everything())
-
-frame87_clean$secondpass_scen <- as.factor(frame87_clean$secondpass_scen)
-
-# remove first pass tests
-frame87_clean_2nd <- frame87_clean[frame87_clean$firstpass_scen==FALSE, ]
+library(e1071)
+# Evaluation with test data set
+yhat <- predict(RF_mod, select(test, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass)))
+# Confusion matrix
+ytrue <- test$SERGEBNIS
+caret::confusionMatrix(yhat_label, as.factor(ytrue), positive="1")
 ```
 
+# 5.2 AI - predicting combind first and second FAIL/PASS 
+
+# 5.2.1 Logistic Regression
+
+stepwise regression feature selection
+```{r, echo = FALSE}
+#train <- frame87_clean   # mal ohne split, nur model fit
+
+null <- glm(firstsecondpass_scen ~1 , select(train, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, BEFUND_clean, SERGEBNIS, pseudo, firstpass_scen, secondpass_scen, xpass)), family=binomial(link="logit"))
+
+full <- glm(firstsecondpass_scen ~. , select(train, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, BEFUND_clean, SERGEBNIS, pseudo, firstpass_scen, secondpass_scen, xpass)), family=binomial(link="logit"))
+
+log_mod2 <- step(null, scope = list(upper=full), data=train, direction="both")
+```
+```{r, echo = FALSE}
+summary(log_mod2)
+
+#calculate odds
+print ("Odds ratios:")
+round(exp(coefficients(log_mod2)),6) #result is odds ratio
+```
+model evaluation
+```{r, echo = FALSE}
+library(e1071)
+# Evaluation with test data set
+yhat <- predict.glm(log_mod2, select(test, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, BEFUND_clean, SERGEBNIS ,pseudo, firstpass_scen, secondpass_scen, xpass)))
+
+# result is vector of mean values of the resprective nodes
+yhat_prob <- fn_norm(yhat)        # normalize predicte values
+yhat_label <- as.factor(prob_to_class(yhat_prob, 0.20))
+
+# Confusion matrix
+ytrue <- test$firstsecondpass_scen
+caret::confusionMatrix(yhat_label, as.factor(ytrue), positive="1")
+
+# Lift / ROC Chart for test data
+par(mfrow=c(1,2))
+Lift_Chart (yhat_prob, ytrue, "Lift Logistic Regression", "black")
+ROC_Chart (yhat_prob, ytrue, "ROC Logistic Regression")
+```
+location of predictors on the board (visual clustering)
+
+```{r, echo = FALSE, message=FALSE, warning=FALSE}
+SMMNR_subtable <- SMMNR_table %>% filter(SARTIKELNR=="A5E02758387") %>% filter (SMMNR %in% names(log_mod2$coefficients))
+ggplot(data = SMMNR_subtable) +
+  geom_point(mapping = aes(x = X_loc, y = Y_loc, colour = count_viol), size=0.8) +
+#  scale_fill_gradientn(colours=c("black","yellow","red"), breaks=c(0,30,50), labels=format(c("0","30","50")) ) +
+         ggtitle("Location of predictors on the board A5E02758387")
+```
+
+# 5.2.2 Random forest
+```{r, echo = FALSE}
+
+# remove first pass tests
+#frame87_clean_2nd <- frame87_clean[frame87_clean$firstpass_scen==FALSE, ]
+```
 
 Random Forest. Sitches partial trees so nr. of predictors could be covered.
 ```{r, echo = FALSE}
 library(randomForest)
 library(caret)
-train <- frame87_clean_2nd   # mal ohne split, nur model fit
+#train <- frame87_clean   # mal ohne split, nur model fit
 
-train <- select(train, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS, BEFUND_clean, pseudo, firstpass_scen))
+#train <- select(train, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, xpass))
 
 # immer wieder die Probleme wenn man zuviel in formula über Minuszeichen ausschließt
 #RF_mod2 <- randomForest(secondpass_scen ~. -NTHID -SFILENAME -DTINSERT -SID -SARTIKELNR -DTDATUM -SPLATZNR -SERGEBNIS -BEFUND_clean -pseudo -firstpass_scen, train, ntree=500)
 
-RF_mod2 <- randomForest(secondpass_scen ~. , train, importance=TRUE, ntree=500)
+RF_mod2 <- randomForest(as.factor(firstsecondpass_scen) ~. , select(train, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, xpass)), importance=TRUE, ntree=500)
+
 RF_mod2
 plot(RF_mod2)
 summary(RF_mod2)
@@ -903,20 +1163,18 @@ summary(RF_mod2)
 varImpPlot(RF_mod2, type=1,main = "Variable Importance")
 varImpPlot(RF_mod2, type=2,main = "Variable Importance")
 
-#yhat <- predict(RF_mod, test)
-#confusionMatrix(yhat, test$SERGEBNIS)
-
+as.data.frame(RF_mod$importance) %>% mutate (Component = row.names(as.data.frame(RF_mod$importance))) %>% select(-c("0","1")) %>% arrange(desc(MeanDecreaseAccuracy))
 ```
 5,75 % fehler bei den ersten 50 (ohne varco selection)
 gleicher fehler mit allen Variablen...
 
-PCA try
+Model evaluation
 ```{r, echo = FALSE}
-# Achtung - die Sequenz vorher ohne VarCo predictor reduktion durchlaufen lassen
-data_pca <- prcomp (select(frame87_clean, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen)), center=TRUE, scale = TRUE)
-print(summary (data_pca))
-#print(data_pca$rotation)
-plot (cumsum((data_pca$sdev)^2/sum((data_pca$sdev)^2)),
-      xlab="PCA components", ylab="Cumulative Proportion of variance")
+library(e1071)
+# Evaluation with test data set
+yhat <- predict(RF_mod2, select(test, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, xpass)))
 
+# Confusion matrix
+ytrue <- test$firstsecondpass_scen
+caret::confusionMatrix(yhat_label, as.factor(ytrue), positive="1")
 ```
