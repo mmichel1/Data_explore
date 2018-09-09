@@ -401,8 +401,8 @@ create_dummy <- function(df, datadesc) {
 
 extract_location <- function(data_file_name) {
   rawlocinfo <- readLines(data_file_name)    
-  locinfo <- data.frame(matrix(ncol=3,nrow=0))
-  colnames(locinfo) <- c('SMMNR_clean','X_loc', 'Y_loc')
+  locinfo <- data.frame(matrix(ncol=4,nrow=0)) #HK ncol geändert von 3 auf 4 für zusätzlich Board-Seite
+  colnames(locinfo) <- c('SMMNR_clean','X_loc', 'Y_loc', 'placementSide')
   locinfo_ix <- 1
   for (i in 1:length(rawlocinfo)) {
     result <- grepl('\\(reference ', rawlocinfo[i])
@@ -412,8 +412,14 @@ extract_location <- function(data_file_name) {
       pos_high = regexpr('\\)', rawlocinfo[i]) -1
       #if (pos_low>=pos_high) browser()
       locinfo[locinfo_ix,1] <- substr(rawlocinfo[i], pos_low, pos_high)
-      locline_ix <- grep("\\(pt", rawlocinfo[i:(i+18)])
-      locline_ix <- i + locline_ix[1] -1   # zweiten locline_ix unterschlagen
+
+      locline_ix <- grep("\\(placementSide", rawlocinfo[i:(i+11)]) #HK Board Oberseite "A" bzw. Unterseite "B"
+      locline_ix <- i + locline_ix[1] -1   
+      if (length(locline_ix) == 0) browser()      
+      locinfo[locinfo_ix,4] <- substr(rawlocinfo[locline_ix], 17, 17)
+      
+      locline_ix <- grep("\\(pt", rawlocinfo[i:(i+21)]) #HK geändert 18 auf 21 um die 2. location Werte abzugreifen
+      locline_ix <- i + locline_ix[2] -1   # HK doch den zweiten locline_ix verwenden
       if (length(locline_ix) == 0) browser()
       x_y <- unlist(gregexpr('(\\d+)' , rawlocinfo[locline_ix]))
       #if (length(x_y) == 1) browser()
@@ -430,3 +436,57 @@ extract_location <- function(data_file_name) {
   return (locinfo)
 }
 
+savePlot <- function(myPlot) {
+  pdf("myPlot.pdf")
+  print(myPlot)
+  dev.off()
+}
+
+tree_func <- function(final_model, 
+                      tree_num) {
+  
+  # get tree by index
+  tree <- randomForest::getTree(final_model, 
+                                k = tree_num, 
+                                labelVar = TRUE) %>%
+    tibble::rownames_to_column() %>%
+    # make leaf split points to NA, so the 0s won't get plotted
+    mutate(`split point` = ifelse(is.na(prediction), `split point`, NA))
+  
+  # prepare data frame for graph
+  graph_frame <- data.frame(from = rep(tree$rowname, 2),
+                            to = c(tree$`left daughter`, tree$`right daughter`))
+  
+  # convert to graph and delete the last node that we don't want to plot
+  graph <- graph_from_data_frame(graph_frame) %>%
+    delete_vertices("0")
+  
+  # set node labels
+  V(graph)$node_label <- gsub("_", " ", as.character(tree$`split var`))
+  V(graph)$leaf_label <- as.character(tree$prediction)
+  V(graph)$split <- as.character(round(tree$`split point`, digits = 2))
+  
+  # plot
+  plot <- ggraph(graph, 'dendrogram') + 
+    theme_bw() +
+    geom_edge_link() +
+    geom_node_point() +
+    geom_node_text(aes(label = node_label), na.rm = TRUE, repel = TRUE, size = 3) +
+    geom_node_label(aes(label = split), vjust = 2.5, na.rm = TRUE, fill = "white", size = 4) +
+    geom_node_label(aes(label = leaf_label, fill = leaf_label), na.rm = TRUE, 
+                    repel = TRUE, colour = "white", fontface = "bold", show.legend = FALSE, size = 3) +
+    theme(panel.grid.minor = element_blank(),
+          panel.grid.major = element_blank(),
+          panel.background = element_blank(),
+          plot.background = element_rect(fill = "white"),
+          panel.border = element_blank(),
+          axis.line = element_blank(),
+          axis.text.x = element_blank(),
+          axis.text.y = element_blank(),
+          axis.ticks = element_blank(),
+          axis.title.x = element_blank(),
+          axis.title.y = element_blank(),
+          plot.title = element_text(size = 18))
+  
+  print(plot)
+}
