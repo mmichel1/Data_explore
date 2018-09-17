@@ -67,7 +67,7 @@ endung ='.csv'            # file extension of the original data
 rel_fpath_output <- "./data/" # relative directory where outputs are stored
 outputcsv  <- "./output/clean_4_modelling_with_R.csv"
 
-Read_Fresh_from_File <- FALSE  # Set to TRUE for first run to fill var rawframe
+Read_Fresh_from_File <- F  # Set to TRUE for first run to fill var rawframe
                            # clean dat frame, set to FALSE for initial data understanding
 options(scipen=999)        # suppress exponential form of print output format
 shortnames <- TRUE         # if T change to short variable names is desired
@@ -75,7 +75,7 @@ printpdf <- FALSE          # if printout in PDF desired
 scatterplot <- FALSE       # it T do scatterplot
 basic_tranform <- TRUE     # do basic feature transformations
 data_exploration <- FALSE  # if data expoloration chunks should apply
-tableau_output <- FALSE    # if input files for Tableau should be created
+tableau_output <- F    # if input files for Tableau should be created
 over_sampling <- FALSE     # if dataset should be oversample w.r.t the important class
 zero_one_norm <- FALSE     # if dataframe should be normalized to [0;1] intervall
 plots_to_disc <- FALSE     # if plots should be saved to output folder
@@ -195,12 +195,13 @@ rawframe <- rawframe %>% arrange(SPLATZNR, DTDATUM, NORDER)
 
 #basic transformations - datenspezifisch!
 #A5E02758387 Isolation Test and Connection Test leads to violation because DTU and DTO are 0.0 while DMW ist constantly 1.0 --> eliminate those otherwise the 2 delivered files do not fit together
-#Board T-J86414591 shows > 400 violations with strange DMW values --> eliminate
+
 if (basic_tranform) {
-  rawframe <- rawframe %>% filter(SEINHEIT != 'OE') %>% filter((SMMNR!='IsolationTest') & (SMMNR!='ConnectionTest')) %>% filter (SID != 'T-J86414591') 
+  rawframe <- rawframe %>% filter(SEINHEIT != 'OE') %>% filter((SMMNR!='IsolationTest') & (SMMNR!='ConnectionTest')) 
 }
 
-
+#Board T-J86414591 shows > 400 violations with strange DMW values --> eliminate for analytics modelling
+if (!tableau_output) rawframe <- rawframe %>% filter (SID != 'T-J86414591') 
 
 cat("\nIn total", nrow(rawframe), "single measurement points (NTDID) after removing Soll-Istwerte lines\n\n")  
 ```
@@ -208,11 +209,11 @@ cat("\nIn total", nrow(rawframe), "single measurement points (NTDID) after remov
 
 ###2.1.2 Collect Q Data
 
-Reading Q Data DPMI_Fehler_alle_alle_201606_bis_201608_31.07.2018_adapt.csv (manual merge of two deliveries).
-
-Remove duplicates.
-Restrict to single row per FID.
-Integrate agreed error mapping into Q Data.
+Reading Q Data DPMI_Fehler_alle_alle_201606_bis_201608_31.07.2018_adapt.csv (manual merge of two deliveries).  
+  
+* Remove duplicates.
+* Restrict to single row per FID.
+* Integrate agreed error mapping into Q Data.
 
 ```{r, echo = FALSE, warning=FALSE}
 q_daten <- read_delim("data/DPMI_Fehler_alle_alle_201606_bis_201608_31.07.2018_adapt.csv", 
@@ -233,7 +234,7 @@ cat(nrow(q_daten), "rows remaining\n")
 
 # Integrate agreed error mapping into Q Data
 Error_mapping <- data.frame(BEFUND = c("B000", "B100", "B317", "B319", "B400", "V110", "V120", "V130", "V132", "V133", "V140", "V210", "V230"),
-  BEFUND_clean = c("Pseudo Error", "Offene Loetstelle", "Falsches Bauteil", "Kurzschluss", "Offene Loetstelle", "Offene Loetstelle", "Falsches Bauteil", "Falsches Bauteil", "Offene Loetstelle", "Offene Loetstelle", "Offene Loetstelle", "Offene Loetstelle", "Kurzschluss"))
+  BEFUND_clean = c("Pseudo Fehler", "Offene Loetstelle", "Falsches Bauteil", "Kurzschluss", "Offene Loetstelle", "Offene Loetstelle", "Falsches Bauteil", "Falsches Bauteil", "Offene Loetstelle", "Offene Loetstelle", "Offene Loetstelle", "Offene Loetstelle", "Kurzschluss"))
 
 q_daten <- left_join(q_daten, Error_mapping)
 
@@ -356,7 +357,7 @@ ggplot(data = filter(SMMNR_table, SARTIKELNR == "A5E02758387", placementSide == 
     geom_text (aes(label=SMMNR_clean), hjust=0.5, vjust=-0.5, size=2) +
     coord_cartesian(xlim = unlist(c(loc_mm[loc_mm$SARTIKELNR=="A5E02758387", 2], loc_mm[loc_mm$SARTIKELNR=="A5E02758387", 4]))) +
     coord_cartesian(ylim = unlist(c(loc_mm[loc_mm$SARTIKELNR=="A5E02758387", 3], loc_mm[loc_mm$SARTIKELNR=="A5E02758387", 5]))) +
-    ggtitle("Localisation Info for board A5E02758387 side A")
+    ggtitle("Localisation Info for board A5E02758387 side B")
 if (plots_to_disc) ggsave ("./output/location_B_full.png", width = 19.5, height = 8.1)
 
 # Output for visualisation  with Tableau
@@ -481,7 +482,7 @@ for (i in 1:nrow(rawframe)) {
     }
 #    if (i %% 500000 == 0) {print (i)}
 }
-# loop wir ab 3 Mio. Interationen äußerst langsam, wenn basic_transform = F!
+# loop wird ab 3 Mio. Interationen äußerst langsam, wenn basic_transform = F!
 
 # remove dashes in SMMNR text
 rawframe$SMMNR <- str_replace_all(rawframe$SMMNR, "([[:punct:]])|\\s+", "_")
@@ -648,8 +649,16 @@ ggplot(data = SFILENR_table, mapping = aes(x = count_pass)) +
          facet_wrap(~ SARTIKELNR, ncol = 2, scales = "free_y") +
          ggtitle("Nr. of measurement counts when passed")
 
-#SFILENR_subtable <- filter(SFILENR_table, SARTIKELNR=='A5E02758387') %>% arrange(desc(count))
+SFILENR_subtable <- filter(SFILENR_table, SARTIKELNR=='A5E02758387') %>% arrange(desc(count))
+# Testquery for SID # received from St. Kraus 7.9
+#view <- SFILENR_table %>% filter (SID %in% c("T-J86414591", "T-J86258604", "T-J86286945", "T-J86286978", "T-J86324036", "T-J86324101", "T-J86353536", "T-J86353555", "T-J86353569", "T-J86353595", "T-J86353596", "T-J86353611", "T-J86353615", "T-J86353636", "T-J86353640", "T-J86414517", "T-J86414521", "T-J86414549", "T-J86414557", "T-J86414571", "T-J86414575", "T-J86414580", "T-J86414586", "T-J86414587", "T-J86414589", "T-J86414608", "T-J86414615", "T-J86414616", "T-J86414619")) #%>% filter(SID=="T-J86286945")
+#view <- rawframe %>% filter (SID %in% c("T-J86258604", "T-J86286945", "T-J86286978", "T-J86324036", "T-J86324101", "T-J86353536", "T-J86353555", "T-J86353569", "T-J86353595", "T-J86353596", "T-J86353611", "T-J86353615", "T-J86353636", "T-J86353640", "T-J86414517", "T-J86414521", "T-J86414549", "T-J86414557", "T-J86414571", "T-J86414575", "T-J86414580", "T-J86414586", "T-J86414587", "T-J86414589", "T-J86414608", "T-J86414615", "T-J86414616", "T-J86414619")) %>% filter((DMW>DTO)|(DMW<DTU)) %>% left_join(SID_table)
 
+#writexl::write_xlsx(view, './output/SFILENR_table_view_kraus.xlsx')
+#rm(view)
+#from_dt <- "2016-09-16 00:00:00"
+#to_dt <- "2017-06-30 00:00:00"
+#view <- SFILENR_table %>% filter(SARTIKELNR=='A5E02758387', DTDATUM > from_dt & DTDATUM < to_dt)
 ```
 Histogram of SFILENR_table$count:
 Two variants (A5E02758387, A5E33212840) show PASS measurement cycles (SFILENR) with doubled entries. What is the reason for it?
@@ -671,18 +680,23 @@ ggplot(data = rawframe, mapping = aes(x = viol_id)) +
          facet_wrap(~ SARTIKELNR, ncol = 2, scales = "free")+
          ggtitle("Distribution of threshold violations per variant")
 ```
+  
 Distribution and list of threshold violations for board A5E02758387
+
 ```{r, echo = FALSE, results='hold', message=FALSE, warning=FALSE}
 ggplot(data = filter(rawframe, SARTIKELNR=='A5E02758387', SID != 'T-J86414591'), mapping = aes(x = viol_id)) +  #Board T-J86414591 shows > 400 violations
          geom_histogram(binwidth = 1) +
          ggtitle("Distribution of threshold violations for A5E02758387") 
+```
 
+Violations for board A5E02758387 by components
+```{r, echo = FALSE, results='hold', message=FALSE, warning=FALSE}
 rawframe_sub <- rawframe %>% filter(DTDATUM < "2016-12-31", SARTIKELNR=='A5E02758387', !is.na(viol_id), SID != 'T-J86414591') %>% group_by (SMMNR, viol_id) %>% count() %>% arrange(desc(n)) #Board T-J86414591 shows > 400 violations
 
 rawframe_sub <- rawframe %>% filter(SARTIKELNR=='A5E02758387', SID != 'T-J86414591', !is.na(viol_id)) %>% group_by (SMMNR, viol_id) %>% count() %>% arrange(desc(n)) #Board T-J86414591 shows > 400 violations
 
 #head(rawframe_sub,50)
-rawframe_sub
+rawframe_sub [1:nrow(rawframe_sub),]
 writexl::write_xlsx(rawframe_sub, './output/violation.xlsx')
 ```         
 
@@ -850,7 +864,10 @@ B) DMW histogramm PASS, FAIL
 Legend: red lines = DTO, DTO; gray lines = mean, 6* standard deviation
 ```{r, echo = FALSE}
 #selektiertes Bauteil
-spec_bauteil <- rawframe %>% filter(SMMNR=='C705', SARTIKELNR=="A5E02758387") %>% arrange(DTDATUM)
+#spec_SMMNR <- "C309"
+spec_SMMNR <- "C705"
+#spec_bauteil <- rawframe %>% filter(SMMNR=='C705', SARTIKELNR=="A5E02758387") %>% arrange(DTDATUM)
+spec_bauteil <- rawframe %>% filter(SMMNR==spec_SMMNR, SARTIKELNR=="A5E02758387") %>% arrange(DTDATUM)
 spec_bauteil$mean <- mean(spec_bauteil$DMW)
 spec_bauteil$sd <- sd(spec_bauteil$DMW)
 
@@ -862,8 +879,8 @@ ggplot(data = spec_bauteil[spec_bauteil$SERGEBNIS=="PASS",], aes(x = DTDATUM)) +
           geom_line(aes(y = mean), colour="gray")+ 
           geom_line(aes(y = mean+6*sd), colour="gray")+
           geom_line(aes(y = mean-6*sd), colour="gray")+
-          coord_cartesian(ylim = c(0.0000000009, 0.0000000014))+
-          ggtitle ("trend for C705 on A5E02758387 - PASS cycles")
+          coord_cartesian(ylim = c(spec_bauteil$DTU, spec_bauteil$DTO))+
+          ggtitle (paste("trend for", spec_SMMNR, "on A5E02758387 - PASS cycles"))
 
 #Messwerte im Zeitvertlauf f?r FAIL
 ggplot(data = spec_bauteil[spec_bauteil$SERGEBNIS=="FAIL",], aes(x = DTDATUM)) +
@@ -873,23 +890,40 @@ ggplot(data = spec_bauteil[spec_bauteil$SERGEBNIS=="FAIL",], aes(x = DTDATUM)) +
           geom_line(aes(y = mean), colour="gray")+ 
           geom_line(aes(y = mean+6*sd), colour="gray")+
           geom_line(aes(y = mean-6*sd), colour="gray")+
-          coord_cartesian(ylim = c(0.0000000009, 0.0000000014))+
-          ggtitle ("trend for C705 on A5E02758387 - FAIL cycles")
+          coord_cartesian(ylim = c(spec_bauteil$DTU, spec_bauteil$DTO))+
+          ggtitle (paste("trend for", spec_SMMNR, "on A5E02758387 - FAIL cycles"))
 
 #Normierung des Messwertintervalls [DTU, DTO] auf [-1;1]
 spec_bauteil$DMW_norm <- (spec_bauteil$DMW - spec_bauteil$DTU)/(spec_bauteil$DTO - spec_bauteil$DTU)*2 -1
 
-#Messwertverteilung f?r PASS
+#Messwertverteilung fuer PASS
 ggplot(data = spec_bauteil[spec_bauteil$SERGEBNIS=="PASS",], mapping = aes(x = DMW_norm)) +  
          geom_histogram(binwidth = 0.05) +
-         coord_cartesian(xlim = c(-2, 2))+
-          ggtitle ("distribution for C705 on A5E02758387 - PASS cycles")
+         coord_cartesian(xlim = c(-2, 2)) +
+         ggtitle (paste("distribution for",spec_SMMNR, "on A5E02758387 - PASS cycles"))
 
-#Messwertverteilung f?r FAIL
+#Boxplot fuer PASS
+writexl::write_xlsx(spec_bauteil, './output/boxplot_C309_values.xlsx')
+ggplot(data = spec_bauteil[spec_bauteil$SERGEBNIS=="PASS",], mapping = aes(y = DMW_norm)) +  
+         geom_boxplot(mapping = aes(y = DMW_norm)) +
+#         coord_cartesian(xlim = c(-2, 2)) +
+         ggtitle (paste("distribution for", spec_SMMNR, "C1121 on A5E02758387 - PASS cycles")) +
+         coord_flip()
+if (plots_to_disc) ggsave ("./output/boxplot_C1121_PASS.png")
+
+#Messwertverteilung fuer FAIL
 ggplot(data = spec_bauteil[spec_bauteil$SERGEBNIS=="FAIL",], mapping = aes(x = DMW_norm)) +  
          geom_histogram(binwidth = 0.05) +
-         coord_cartesian(xlim = c(-2, 2))+
-          ggtitle ("distribution for C705 on A5E02758387 - FAIL cycles")
+         coord_cartesian(xlim = c(-2, 2)) +
+         ggtitle (paste("distribution for",spec_SMMNR, "on A5E02758387 - FAIL cycles"))
+
+#Boxplot fuer FAIL
+ggplot(data = spec_bauteil[spec_bauteil$SERGEBNIS=="FAIL",], mapping = aes(y = DMW_norm)) +  
+         geom_boxplot(mapping = aes(y = DMW_norm)) +
+#         coord_cartesian(xlim = c(-2, 2)) +
+         ggtitle (paste("distribution for", spec_SMMNR, "C1121 on A5E02758387 - FAIL cycles")) +
+         coord_flip()
+if (plots_to_disc) ggsave ("./output/boxplot_C1121_PAIL.png")
 
 #top50_varco_deviation <- board_view [1:100,] %>% filter(SARTIKELNR=="A5E02758387") %>% top_n(100, varco_deviation) %>% select(SMMNR, varco_deviation)
 top40_varco_deviation <- board_view %>% filter(SARTIKELNR=="A5E02758387") %>% top_n(80, varco_deviation)# %>% select(SMMNR, varco_deviation) # top_n tut nicht was es soll, deshalb nachfolgende Zeile
@@ -903,11 +937,8 @@ ggplot(data = SMMNR_subtable, mapping = aes(x = X_loc, y = Y_loc, colour = count
   geom_text (aes(label=SMMNR_clean), hjust=0.5, vjust=-0.5, size=2) +
   ggtitle("Location top 40 varco_deviation on A5E02758387")
 
-# Testquery for SID # received from St. Kraus
-#view <- rawframe %>% filter (SID %in% c("T-J76004333", "SN:T-J76004367", "T-J76004375", "T-J76004407", "T-J76004401", "TT-J86087788", "T-J76004333"))
-#(SMMNR_clean == "V607", SMMNR == "V101", SMMNR == "R522", SMMNR == "R330")
-#head(view)
-#rm(view)
+#view <- rawframe %>% filter(SCOMB_PL=="ICT_AD390650PCA5E02758387V528-K_A1")
+
 ```
 
 for board A5E02758387: Distribution of varco deviation accross all components orderd by magnitude
@@ -964,6 +995,11 @@ for (i in 1:nrow(SID_table))  {
       SID_table$xpass[i] <- SID_table$cycle_fail[i]
   }
 }
+# Testquery for SID # received from St. Kraus 7.9
+#view <- SID_table %>% filter (SID %in% c("T-J86286978", "T-J86324036", "T-J86324101", "T-J86353536", "T-J86353555", "T-J86353569", "T-J86353595", #"T-J86353596", "T-J86353611", "T-J86353615", "T-J86353636", "T-J86353640", "T-J86414517", "T-J86414521", "T-J86414549", "T-J86414557", "T-J86414571", #"T-J86414575", "T-J86414580", "T-J86414586", "T-J86414587", "T-J86414589", "T-J86414608", "T-J86414615", "T-J86414616", "T-J86414619"))
+
+#writexl::write_xlsx(view, './output/SID_table_view_kraus.xlsx')
+#rm(view)
 ```
 create mean and standard deviation for each SCOMB_PL
 ```{r, echo = FALSE}
@@ -982,7 +1018,7 @@ if (tableau_output) {
   FBG_Testlauf <- FBG_Testlauf %>% inner_join(select(SID_table, c(SID, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass))) %>% mutate(Indication = NA)
 
   FBG_Testlauf$Indication[FBG_Testlauf$firstpass_scen==TRUE] <- "First Pass"
-  FBG_Testlauf$Indication[FBG_Testlauf$pseudo==TRUE] <- "Pseudo Error"
+  FBG_Testlauf$Indication[FBG_Testlauf$pseudo==TRUE] <- "Pseudo Fehler"
   FBG_Testlauf$Indication[!is.na(FBG_Testlauf$BEFUND_clean)] <- as.character(FBG_Testlauf$BEFUND_clean[!is.na(FBG_Testlauf$BEFUND_clean)])
 
   #FBG_Testlauf %>% filter(is.na(Indication))
@@ -1002,13 +1038,13 @@ if (tableau_output) {
             sep=",", quote=FALSE, row.names=FALSE, dec=".")
 
   #create table Messdaten_Sollwerte
-  Messdaten_Sollwerte <- rawframe %>% select(SCOMB_PL, DTO, DTU, SEINHEIT) %>% distinct(SCOMB_PL, .keep_all = TRUE)#%>% group_by(SCOMB_PL, DTO, DTU, SEINHEIT) %>% summarise()
+    Messdaten_Sollwerte <- rawframe %>% select(SCOMB_PL, DTO, DTU, SEINHEIT) %>% distinct(SCOMB_PL, .keep_all = TRUE)# %>%  #group_by(SCOMB_PL, DTO, DTU, SEINHEIT) %>% summarise()
 
   #y limits for default display in Alerts view
   #Messdaten_Sollwerte$Y_min <- Messdaten_Sollwerte$DTU - (Messdaten_Sollwerte$DTO - Messdaten_Sollwerte$DTU)
   #Messdaten_Sollwerte$Y_max <- Messdaten_Sollwerte$DTO + (Messdaten_Sollwerte$DTO - Messdaten_Sollwerte$DTU)
 
-  Messdaten_Sollwerte <- left_join(Messdaten_Sollwerte, select(SMMNR_table, c(SCOMB_PL, X_loc, Y_loc, placementSide,  SMMNR_clean)))
+  Messdaten_Sollwerte <- left_join(Messdaten_Sollwerte, select(SMMNR_table, c(SCOMB_PL, X_loc, Y_loc, placementSide,  SMMNR_clean))) %>% distinct(SCOMB_PL, .keep_all = TRUE)
 
   outputcsv <- "./output/Messdaten_Sollwerte.csv"
   write.table(Messdaten_Sollwerte,   # write resulting data into CSV file with tabstops
@@ -1297,11 +1333,13 @@ test_n <- frame87_clean_n[-train_index, ]#-(1:1)]       # ..das Komplement die T
 train <- frame87_clean[train_index, ]#-(1:1)]       # Zufallsvektor definiert die Trainingsdaten
 test  <- frame87_clean[-train_index, ]#-(1:1)]       # ..das Komplement die Testdaten
 
+cat("Number of Boards         :", as.character(count(distinct(frame87_clean, SID ))), "\n")
+
 cat("Dimension dataset        :", dim(frame87_clean), "1.pass", as.character(sum(frame87_clean$firstpass_scen)), as.character(round(sum(frame87_clean$firstpass_scen)/nrow(frame87_clean)*100,1)), "% ", "1.2.pass", as.character(sum(frame87_clean$firstsecondpass_scen)), as.character(round(sum(frame87_clean$firstsecondpass_scen )/nrow(frame87_clean)*100,1)), "%", "\n")
 
 cat("Dimension train partition:", dim(train), "1.pass", as.character(sum(train$firstpass_scen)), as.character(round(sum(train$firstpass_scen)/nrow(train)*100,1)), "% ", "1.2.pass", as.character(sum(train$firstsecondpass_scen)), as.character(round(sum(train$firstsecondpass_scen)/nrow(train)*100,1)), "%", "\n")
 
-cat("Dimension test partition : ", dim(test), "1.pass ", as.character(sum(test$firstpass_scen)), as.character(round(sum(test$firstpass_scen)/nrow(test)*100,1)), "% ", "1.2.pass", as.character(sum(test$firstsecondpass_scen)), as.character(round(sum(test$firstsecondpass_scen)/nrow(test)*100,1)), "%", "\n")
+cat("Dimension test partition : ", dim(test), "1.pass", as.character(sum(test$firstpass_scen)), as.character(round(sum(test$firstpass_scen)/nrow(test)*100,1)), "% ", "1.2.pass", as.character(sum(test$firstsecondpass_scen)), as.character(round(sum(test$firstsecondpass_scen)/nrow(test)*100,1)), "%", "\n")
 ```
 
 # 5 AI
@@ -1415,12 +1453,12 @@ caret::confusionMatrix(yhat, as.factor(ytrue), positive="1")
 ```
 
 # 5.2 AI - predicting combind first and second FAIL/PASS 
-
+ 
 # 5.2.1 Logistic regression (AIC stepwise algorithm)
-
-Reasoning for model seletion:
-*predictor varialbe follow standard distribution
-*stepwizse approach supports selection of signifcant predictors
+ 
+Reasoning for model seletion: 
+* predictor varialbe follow standard distribution
+* stepwizse approach supports selection of signifcant predictors
 ```{r, echo = FALSE, warning=FALSE}
 #train_n <- frame87_clean_n   # mal ohne split, nur model fit
 
@@ -1513,12 +1551,12 @@ if (plots_to_disc) ggsave ("./output/location_LogReg.png")
 # remove first pass tests
 #frame87_clean_2nd <- frame87_clean[frame87_clean$firstpass_scen==FALSE, ]
 ```
-Sitches partial trees so nr. of predictors could be covered.
-Reasoning for model seletion:
-*automatic featrue reduction
-*less sensitive to outliers
-*balance errors in datasets where the classes are imbalanced
-*handles massive datasets with large dimensionality
+Sitches partial trees so nr. of predictors could be covered.  
+Reasoning for model seletion:  
+* automatic featrue reduction  
+* less sensitive to outliers  
+* balance errors in datasets where the classes are imbalanced  
+* handles massive datasets with large dimensionality  
 
 ```{r, echo = FALSE}
 library(randomForest)
@@ -1581,15 +1619,23 @@ caret::confusionMatrix(yhat, as.factor(ytrue), positive="1")
 location of predictors on the board (visual clustering)
 
 ```{r, echo = FALSE, message=FALSE, warning=FALSE}
-SMMNR_subtable <- SMMNR_table %>% filter(SARTIKELNR=="A5E02758387") %>% filter (SMMNR %in% top_RF_fs$Component [1:30])
+SMMNR_subtable <- SMMNR_table %>% filter(SARTIKELNR=="A5E02758387") %>% filter (SMMNR %in% top_RF_fs2$Component [1:30]) %>% group_by(SMMNR) %>% summarise(count_viol = sum(count_viol, na.rm=TRUE), X_loc = unique(X_loc), Y_loc = unique(Y_loc), SMMNR_clean = unique(SMMNR_clean), placementSide = unique(placementSide))
 
-ggplot(data = filter(SMMNR_subtable), mapping = aes(x = X_loc, y = Y_loc, colour = count_viol), size=1.0) +
+ggplot(data = filter(SMMNR_subtable, placementSide=="A"), mapping = aes(x = X_loc, y = Y_loc, colour = count_viol), size=1.0) +
     geom_point() +
     geom_text (aes(label=SMMNR_clean), hjust=0.5, vjust=-0.5, size=3) +
     coord_cartesian(xlim = unlist(c(loc_mm[loc_mm$SARTIKELNR=="A5E02758387", 2], loc_mm[loc_mm$SARTIKELNR=="A5E02758387", 4]))) +
     coord_cartesian(ylim = unlist(c(loc_mm[loc_mm$SARTIKELNR=="A5E02758387", 3], loc_mm[loc_mm$SARTIKELNR=="A5E02758387", 5]))) +
-    ggtitle("Localisation Info for board A5E02758387 for RF")
-if (plots_to_disc) ggsave ("./output/location_RF.png")
+    ggtitle("Localisation Info for board A5E02758387 for RF side A")
+if (plots_to_disc) ggsave ("./output/location_RF_A.png")
+
+ggplot(data = filter(SMMNR_subtable, placementSide=="B"), mapping = aes(x = X_loc, y = Y_loc, colour = count_viol), size=1.0) +
+    geom_point() +
+    geom_text (aes(label=SMMNR_clean), hjust=0.5, vjust=-0.5, size=3) +
+    coord_cartesian(xlim = unlist(c(loc_mm[loc_mm$SARTIKELNR=="A5E02758387", 2], loc_mm[loc_mm$SARTIKELNR=="A5E02758387", 4]))) +
+    coord_cartesian(ylim = unlist(c(loc_mm[loc_mm$SARTIKELNR=="A5E02758387", 3], loc_mm[loc_mm$SARTIKELNR=="A5E02758387", 5]))) +
+    ggtitle("Localisation Info for board A5E02758387 for RF side B")
+if (plots_to_disc) ggsave ("./output/location_RF_B.png")
 ```
 
 visualize tree example
@@ -1601,12 +1647,155 @@ library(igraph)
 tree_func(RF_mod2, 300)
 ```
 
-# 5.2.3Grandient Boosted Tree
+# 5.2.3 Lasso regression
+
+Def.: least absolute shrinkage and selection operator
+Reasoning for model seletion:  
+* performs both variable selection and regularization in order to enhance the prediction accuracy and interpretability
+* tries to avoid overfitting penalizing large coefficients
+* can shrink some of the coefficients to exactly zero
+http://ricardoscr.github.io/how-to-use-ridge-and-lasso-in-r.html
+https://stats.stackexchange.com/questions/72251/an-example-lasso-regression-using-glmnet-for-binary-outcome
+
+further investigation with Adaptive Lasso:
+* Adaptive Lasso, as a regularization method, avoids overfitting penalizing large coefficients
+
+http://ricardoscr.github.io/how-to-adaptive-lasso.html
+
+```{r, echo = FALSE, message=FALSE, warning=FALSE}
+library(glmnet)
+Adaptive_Lasso <-TRUE
+
+if (!Adaptive_Lasso) {
+  ## Lasso
+  ## Note alpha=1 for lasso only and can blend with ridge penalty down to alpha=0 ridge only.
+  cv.lasso_mod <- cv.glmnet(as.matrix(select(train_n, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass))), train_n$firstsecondpass_scen, alpha=1, parallel=TRUE, standardize=FALSE, type.measure='auc')
+}
+if (Adaptive_Lasso) {
+  ## Ridge Regression to create the Adaptive Weights Vector
+  cv.ridge <- cv.glmnet(as.matrix(select(train_n, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass))), train_n$firstsecondpass_scen,  alpha=0, parallel=TRUE, standardize=TRUE)
+  w3 <- 1/abs(matrix(coef(cv.ridge, s=cv.ridge$lambda.min)[, 1][2:(ncol(select(train_n, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass)))+1)] ))^1 ## Using gamma = 1
+  w3[w3[,1] == Inf] <- 999999999 ## Replacing values estimated as Infinite for 999999999
+
+  ## Adaptive Lasso
+  cv.lasso_mod <- cv.glmnet(as.matrix(select(train_n, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass))), train_n$firstsecondpass_scen, alpha=1, parallel=TRUE, standardize=TRUE, type.measure='auc', penalty.factor=w3)  
+}
+
+cv.lasso_mod$lambda.min
+
+coef(cv.lasso_mod, s=cv.lasso_mod$lambda.min)
+plot(cv.lasso_mod, xvar="lambda", label=TRUE)
+
+top_Lasso_coeff <- coef(cv.lasso_mod, s=cv.lasso_mod$lambda.min)
+top_Lasso_coeff <- cbind.data.frame(unlist(top_Lasso_coeff@Dimnames[1])[top_Lasso_coeff@i+1], top_Lasso_coeff@x, exp(top_Lasso_coeff@x))
+names(top_Lasso_coeff) <- c("SMMNR", "Coefficient", "Odds")
+top_Lasso_coeff <- top_Lasso_coeff %>% arrange(desc(Coefficient))
+top_Lasso_coeff[1:15,] # top 15 positive coefficients
+top_Lasso_coeff[(nrow(top_Lasso_coeff)-15):nrow(top_Lasso_coeff),]  # top 15 negative coefficients
+```
+
+model evaluation for Lasso regression
+number of observations 1550  
+firstsecondpass_sec 1482 95.6 % 
+[-1;1] normalized values
+
+Feature Selection     | Seed     | Oversampling | Cutoff | Accuracy
+----------------------|----------|--------------|--------|--------------------------
+all variables         | 123      |   no         | 0.55   | 98,28% (4 false positive) 
+standardization=TRUE  |          |              |        |      
+                      |          |              |        |  
+all variables         | 123456789|   no         | 0.60   | 98,92% (2 false positive)
+standardization=TRUE  |          |              |        |      
+                      |          |              |        | 
+all variables         | 123      |   no         | 0.50   | 98,71% (4 false positive)
+                      |          |              |        |  
+all variables         | 123456789|   no         | 0.55   | 98,28% (4 false positive)
+                      |          |              |        |                      
+excl. highly          |          |              |        |
+correlated variables  | 123      |   no         | 0.55   | 98,28% (3 false positive) 
+                      |          |              |        |                          
+excl. highly          | 123456789|   no         | 0.55   | 97,42% (4 false positive)
+correlated variables  |          |              |        |
+                      |          |              |        |
+                      
+model evaluation for Adaptive Lasso regression                      
+Feature Selection     | Seed     | Oversampling | Cutoff | Accuracy
+----------------------|----------|--------------|--------|--------------------------
+ll variables          | 123      |   no         | 0.50   | 98,71% (4 false positive) 
+standardization=TRUE  |          |              |        |      
+                      |          |              |        |  
+all variables         | 123456789|   no         | 0.60   | 98,92% (2 false positive)
+standardization=TRUE  |          |              |        |      
+                      |          |              |        |  
+all variables         | 123      |   no         | 0.55   | 98,06% (4 false positive)
+                      |          |              |        |  
+all variables         | 123456789|   no         | 0.55   | 98,06% (4 false positive)
+
+Adaptive Lasso reduces the number of coeffiencts to about 190 whereas Lasso comes up wiht about 205 coeffiencts 
+                      
+```{r, echo = FALSE, message=FALSE, warning=FALSE}
+library(e1071)
+# Evaluation with test data set
+yhat <- predict(cv.lasso_mod, as.matrix(select(test_n, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass))), type = "class", s = "lambda.min")
+yhat_prob <- fn_norm_zo(yhat)        # normalize predicte values
+yhat_label <- as.factor(prob_to_class(yhat_prob, 0.60))
+
+# Confusion matrix
+ytrue <- test_n$firstsecondpass_scen
+caret::confusionMatrix(yhat_label, as.factor(ytrue), positive="1")
+
+# Lift / ROC Chart for test data
+par(mfrow=c(1,2))
+Lift_Chart (as.vector(yhat_prob), ytrue, "Lift Logistic Regression", "black")
+ROC_Chart (yhat_prob, ytrue, "ROC Logistic Regression")
+```
+location of predictors on the board (visual clustering)
+
+```{r, echo = FALSE, message=FALSE, warning=FALSE}
+SMMNR_subtable <- SMMNR_table %>% filter(SARTIKELNR=="A5E02758387") %>% filter (SMMNR %in% top_Lasso_coeff$SMMNR[1:15] | SMMNR %in% top_Lasso_coeff$SMMNR [(nrow(top_Lasso_coeff)-15):nrow(top_Lasso_coeff)]) %>% group_by(SMMNR) %>% summarise(count_viol = sum(count_viol, na.rm=TRUE), X_loc = unique(X_loc), Y_loc = unique(Y_loc), SMMNR_clean = unique(SMMNR_clean), placementSide = unique(placementSide))
+
+ggplot(data = filter(SMMNR_subtable, placementSide=="A"), mapping = aes(x = X_loc, y = Y_loc, colour = count_viol), size=1.0) +
+    geom_point() +
+    geom_text (aes(label=SMMNR_clean), hjust=0.5, vjust=-0.5, size=3) +
+    coord_cartesian(xlim = unlist(c(loc_mm[loc_mm$SARTIKELNR=="A5E02758387", 2], loc_mm[loc_mm$SARTIKELNR=="A5E02758387", 4]))) +
+    coord_cartesian(ylim = unlist(c(loc_mm[loc_mm$SARTIKELNR=="A5E02758387", 3], loc_mm[loc_mm$SARTIKELNR=="A5E02758387", 5]))) +
+    ggtitle("Localisation Info for board A5E02758387 for Lasso side A")
+if (plots_to_disc) ggsave ("./output/location_Lasso_A.png")
+
+ggplot(data = filter(SMMNR_subtable, placementSide=="B"), mapping = aes(x = X_loc, y = Y_loc, colour = count_viol), size=1.0) +
+    geom_point() +
+    geom_text (aes(label=SMMNR_clean), hjust=0.5, vjust=-0.5, size=3) +
+    coord_cartesian(xlim = unlist(c(loc_mm[loc_mm$SARTIKELNR=="A5E02758387", 2], loc_mm[loc_mm$SARTIKELNR=="A5E02758387", 4]))) +
+    coord_cartesian(ylim = unlist(c(loc_mm[loc_mm$SARTIKELNR=="A5E02758387", 3], loc_mm[loc_mm$SARTIKELNR=="A5E02758387", 5]))) +
+    ggtitle("Localisation Info for board A5E02758387 for Lasso side B")
+if (plots_to_disc) ggsave ("./output/location_Lasso_B.png")
+```
+
+RPART (not recommended)
+```{r, echo = FALSE, message=FALSE, warning=FALSE}
+library(rpart)
+library(rpart.plot)
+rp_mod <- rpart(as.factor(firstsecondpass_scen) ~.,  data = select(train, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, xpass)))
+rpart.plot(rp_mod)
+```
+
+```{r, echo = FALSE}
+library(e1071)
+# Evaluation with test data set
+yhat_label <- rpart.predict(rp_mod, select(test, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, xpass)), type = "class")
+#yhat_prob <- fn_norm_zo(yhat)        # normalize predicte values
+#yhat_label <- as.factor(prob_to_class(yhat_prob, 0.50))
+ytrue <- test$firstsecondpass_scen
+caret::confusionMatrix(yhat_label, as.factor(ytrue), positive="1")
+```
+
+
+# 5.2.4 Grandient Boosted Tree
 
 ```{r, echo = FALSE, message=FALSE, warning=FALSE}
 library(gbm)
 gbt_mod <- gbm(as.factor(firstsecondpass_scen) ~. , data=select(train, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, xpass)), distribution = "gaussian", n.trees = 500)
-summary(gbt_mod)
+#summary(gbt_mod)
 plot(gbt_mod,i="R524")
 ```
 
