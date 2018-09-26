@@ -52,7 +52,7 @@ ROC_Chart <- function (yhat_proba, ytrue, headline) {
   
   #calcualte AUC (Area under Curve-ROC)
   auc_value <- performance(pred_obj, 'auc')@y.values[[1]]
-  print (auc_value)
+  cat ("Area under Curve-ROC:",auc_value)
   plot(perf, colorize=T,
        xlab="1 - Specificity", ylab="Sensitivity", cex.main=0.75,
        main = toString (c(headline, " AUC", round(auc_value, digits = 4))))
