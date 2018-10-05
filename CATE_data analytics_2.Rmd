@@ -75,7 +75,7 @@ printpdf <- FALSE          # if printout in PDF desired
 scatterplot <- FALSE       # it T do scatterplot
 basic_tranform <- TRUE     # do basic feature transformations
 data_exploration <- FALSE  # if data expoloration chunks should apply
-tableau_output <- FALSE    # if input files for Tableau should be created
+tableau_output <- T    # if input files for Tableau should be created
 over_sampling <- FALSE     # if dataset should be oversample w.r.t the important class
 zero_one_norm <- FALSE     # if dataframe should be normalized to [0;1] intervall
 plots_to_disc <- FALSE     # if plots should be saved to output folder
@@ -734,6 +734,21 @@ Outlier caused by A5E02758387 board: T-J8641459 (pseudo, first measurement cycle
 - specific background? (most of the values 0,000000000000 or 4.294.967.295,0 - measurement value range of equipment?)
 --> working assumption for analytics: remove outlier
 
+Time distance between first fail and first pass for board "A5E02758387"
+```{r, echo=FALSE, results='hide', message=FALSE, warning=FALSE}
+time_diff <- SID_table %>% filter (SARTIKELNR=="A5E02758387") %>%
+         select (SID, firstpass_dt, firstfail_dt, limit_viol) %>% 
+         mutate(diff = (firstpass_dt - firstfail_dt)/60) %>% arrange(diff) %>% filter (!is.na(diff))
+
+ggplot(data = time_diff, mapping = aes(x = diff)) +
+         geom_histogram(binwidth = 1) +
+         coord_cartesian(xlim = c(0, 60)) +
+         ggtitle("Distribution of time difference 1st fail - 1st pass for A5E02758387") +
+         xlab("first fail / first pass time period in min")
+```
+56 out of 68 boards were tested within a first fail / first pass time period of 18 minutes -> asumptions: pseudo errors;  
+63 within one hour  
+  
 ## 3.5 Save Result Tables 
 
 Above shown result tables will be saved - extended for Tableau input in future sprints.
@@ -1034,13 +1049,9 @@ if (tableau_output) {
 
   #FBG_Testlauf %>% filter(is.na(Indication))
   FBG_Testlauf <- FBG_Testlauf %>% select(key_SID_DTDATUM, SPLATZNR, SARTIKELNR, SID, DTDATUM, SERGEBNIS, Indication)
-
-  outputcsv <- "./output/FBG_Testlauf.csv"
-  write.table(FBG_Testlauf,   # write resulting data into CSV file with tabstops
-            file=outputcsv,
-            sep=",", quote=FALSE, row.names=FALSE, dec=".") 
-
-  ### create table Messung ###
+  
+  #######################################
+  ### create table Messung            ###
   Messung <- rawframe %>% mutate(key_SID_DTDATUM = paste0(SID, as.character(DTDATUM))) %>%  select(key_SID_DTDATUM, NTDID, SID, DTDATUM, SMMNR, DMW, SEINHEIT, NORDER, SCOMB_PL, DTO, DTU)
   
   #calculate DMW normalized where DTU = -1.0 and DTO = 1.0
@@ -1050,21 +1061,21 @@ if (tableau_output) {
   Messung$DMW_viol <- "normal"
   Messung$DMW_viol[(abs(Messung$DMW_norm)>1.0) & (abs(Messung$DMW_norm)<=1.01)] <- "minimal"
   Messung$DMW_viol[(abs(Messung$DMW_norm)>1.01) & (abs(Messung$DMW_norm)<=1.05)] <- "moderat"
-  Messung$DMW_viol[(abs(Messung$DMW_norm)>1.05) & (abs(Messung$DMW_norm)<=1.1)] <- "erhÃ¶ht"
+  Messung$DMW_viol[(abs(Messung$DMW_norm)>1.05) & (abs(Messung$DMW_norm)<=1.1)] <- "erhöht"
   Messung$DMW_viol[abs(Messung$DMW_norm)>1.1] <- "definitiv"
  
   Messung <- select(Messung, key_SID_DTDATUM, NTDID, SID, DTDATUM, SMMNR, DMW, SEINHEIT, NORDER, SCOMB_PL, DMW_norm, DMW_viol)
 
-  
-  outputcsv <- "./output/Messung.csv"
-  write.table(Messung,   # write resulting data into CSV file with tabstops
-            file=outputcsv,
-            sep=",", quote=FALSE, row.names=FALSE, dec=".")
-
+  ########################################
   ### create table Messdaten_Sollwerte ###
   Messdaten_Sollwerte <- rawframe %>% select(SCOMB_PL, DTO, DTU, SEINHEIT, DMW_median, DMW_IQR) %>% distinct(SCOMB_PL, .keep_all = TRUE)
   
-  Messdaten_Sollwerte <- left_join(Messdaten_Sollwerte, select(SMMNR_table, c(SCOMB_PL, X_loc, Y_loc, placementSide,  SMMNR_clean))) %>% distinct(SCOMB_PL, .keep_all = TRUE)
+  Messdaten_Sollwerte <- left_join(Messdaten_Sollwerte, select(SMMNR_table, c(SCOMB_PL, X_loc, Y_loc, placementSide,SMMNR))) %>% distinct(SCOMB_PL, .keep_all = TRUE)
+   
+  names(Messdaten_Sollwerte)[10] <-paste("SMMNR_clean")
+
+  #version befor Sept. 27th with SMMNR_clean
+  #Messdaten_Sollwerte <- left_join(Messdaten_Sollwerte, select(SMMNR_table, c(SCOMB_PL, X_loc, Y_loc, placementSide,  SMMNR_clean))) %>% distinct(SCOMB_PL, .keep_all = TRUE)
   
   #recommendations new upper thresholds
   Messdaten_Sollwerte$DTO_001 <- Messdaten_Sollwerte$DTO + (Messdaten_Sollwerte$DTO - Messdaten_Sollwerte$DTU)/2 *0.01
@@ -1081,7 +1092,7 @@ if (tableau_output) {
   
   Messdaten_Sollwerte$meddev <- "normal"
   Messdaten_Sollwerte$meddev[abs(Messdaten_Sollwerte$DMW_median_norm)>0.25 & abs(Messdaten_Sollwerte$DMW_median_norm)<=0.5] <- "moderat"
-  Messdaten_Sollwerte$meddev[abs(Messdaten_Sollwerte$DMW_median_norm)>0.5] <- "erhÃ¶ht"
+  Messdaten_Sollwerte$meddev[abs(Messdaten_Sollwerte$DMW_median_norm)>0.5] <- "erhöht"
   
   
   #calculate new thresholds because of median deviation
@@ -1104,7 +1115,7 @@ if (tableau_output) {
   
   Messdaten_Sollwerte$IQRdev <- "normal"
   Messdaten_Sollwerte$IQRdev[Messdaten_Sollwerte$DMW_IQR_norm>0.2 & Messdaten_Sollwerte$DMW_IQR_norm<=0.4] <- "moderat"
-  Messdaten_Sollwerte$IQRdev[Messdaten_Sollwerte$DMW_IQR_norm>0.4] <- "erhÃ¶ht"  
+  Messdaten_Sollwerte$IQRdev[Messdaten_Sollwerte$DMW_IQR_norm>0.4] <- "erhöht"
   
   #calculate new thresholds for moderate IQR range
   Messdaten_Sollwerte$DTO_i20 <- Messdaten_Sollwerte$DTO
@@ -1112,15 +1123,62 @@ if (tableau_output) {
   
   Messdaten_Sollwerte$DTO_i20[Messdaten_Sollwerte$IQRdev=="moderat"] <- Messdaten_Sollwerte$DTO[Messdaten_Sollwerte$IQRdev=="moderat"] * (1+(Messdaten_Sollwerte$DMW_IQR_norm[Messdaten_Sollwerte$IQRdev=="moderat"] - 0.2)/2)  
     
-  Messdaten_Sollwerte$DTU_i20[Messdaten_Sollwerte$IQRdev=="moderat"] <- Messdaten_Sollwerte$DTU[Messdaten_Sollwerte$IQRdev=="moderat"] * (1-(Messdaten_Sollwerte$DMW_IQR_norm[Messdaten_Sollwerte$IQRdev=="moderat"] - 0.2)/2)  
+  Messdaten_Sollwerte$DTU_i20[Messdaten_Sollwerte$IQRdev=="moderat"] <- Messdaten_Sollwerte$DTU[Messdaten_Sollwerte$IQRdev=="moderat"] * (1-(Messdaten_Sollwerte$DMW_IQR_norm[Messdaten_Sollwerte$IQRdev=="moderat"] - 0.2)/2)
   
+  #02.10.18 flag for recommendation
+  Messdaten_Sollwerte$IQR_rcm <- ""
+  # 1st hierarchy IQR
+  Messdaten_Sollwerte$IQR_rcm[Messdaten_Sollwerte$IQRdev=="moderat"] <- "X"
   
+  # 2nd hierarchy Median
+  Messdaten_Sollwerte$med_rcm <- ""
+  Messdaten_Sollwerte$med_rcm[Messdaten_Sollwerte$meddev=="moderat" & Messdaten_Sollwerte$IQRdev!="moderat"] <- "X"
+  
+  Messung$DMW_rcm <- ""
+  Messung <- left_join(Messung, select(Messdaten_Sollwerte, c(SCOMB_PL, IQR_rcm, med_rcm)), by="SCOMB_PL")
+  
+  # 3rd hierarchy violatoin minimal
+  Messung$DMW_rcm[Messung$DMW_viol=="minimal" & Messung$IQR_rcm!="X" & Messung$med_rcm!="X"]  <- "X"
+  
+  # 3rd hierarchy violatoin moderat
+  Messung_interim <- Messung %>% select(SCOMB_PL, DMW_viol, DMW_rcm) %>% filter(DMW_rcm=="X") %>% distinct(SCOMB_PL, .keep_all = TRUE) %>% mutate(DMW_rcm_min = DMW_rcm)
+  Messung <- left_join(Messung, select(Messung_interim, c(SCOMB_PL, DMW_rcm_min)), by="SCOMB_PL")
+  Messung$DMW_rcm_min[is.na(Messung$DMW_rcm_min)] <- ""
+  
+  Messung$DMW_rcm[Messung$DMW_viol=="moderat" & Messung$DMW_rcm_min!="X" & Messung$IQR_rcm!="X" & Messung$med_rcm!="X"]  <- "X"
+  
+  # 3rd hierarchy violatoin erhoeht
+  Messung_interim <- Messung %>% select(SCOMB_PL, DMW_viol, DMW_rcm) %>% filter(DMW_rcm=="X") %>% distinct(SCOMB_PL, .keep_all = TRUE) %>% mutate(DMW_rcm_mod = DMW_rcm)
+  Messung <- left_join(Messung, select(Messung_interim, c(SCOMB_PL, DMW_rcm_mod)), by="SCOMB_PL")
+  Messung$DMW_rcm_mod[is.na(Messung$DMW_rcm_mod)] <- ""
+  
+  Messung$DMW_rcm[Messung$DMW_viol=="erhöht" & Messung$DMW_rcm_min!="X" & Messung$DMW_rcm_mod!="X" & Messung$IQR_rcm!="X" & Messung$med_rcm!="X"]  <- "X"
+  Messung <- Messung %>% select(-c(IQR_rcm, med_rcm, DMW_rcm_min, DMW_rcm_mod))
+  
+  Messung_sub <- Messung %>% filter (DMW_rcm=="X")
+  
+  ##################
+  ### save files ###
+  
+  print("... saving FBG_Testlauf table")
+  outputcsv <- "./output/FBG_Testlauf.csv"
+  write.table(FBG_Testlauf,   # write resulting data into CSV file with tabstops
+            file=outputcsv,
+            sep=",", quote=FALSE, row.names=FALSE, dec=".")
+  
+  print("... saving Messung table")
+  outputcsv <- "./output/Messung.csv"
+  write.table(Messung,   # write resulting data into CSV file with tabstops
+            file=outputcsv,
+            sep=",", quote=FALSE, row.names=FALSE, dec=".")
+  
+  print("... saving Messdaten table")
   outputcsv <- "./output/Messdaten_Sollwerte.csv"
   write.table(Messdaten_Sollwerte,   # write resulting data into CSV file with tabstops
             file=outputcsv,
             sep=",", quote=FALSE, row.names=FALSE, dec=".")
   
-  rm (FBG_Testlauf, Messung, Messdaten_Sollwerte)
+  rm (FBG_Testlauf, Messung, Messdaten_Sollwerte, Messung_sub)
 }
 ```
 
@@ -1392,33 +1450,34 @@ split into train (70%) and test (30%) dataset
 # random splitting
 #NR <- nrow(frame87_clean)
 
-#set.seed(123456789)
+set.seed(123456789)
 
-train_index <- sample(NR, NR * 0.7)       # %-Satz der Trainingsdaten
+#train_index <- sample(NR, NR * 0.7)       # %-Satz der Trainingsdaten
 
 #stratified sampling
 NR <- frame87_clean %>% select(firstsecondpass_scen) %>% mutate(index = row_number()) %>% group_by(firstsecondpass_scen) %>% sample_frac(0.7)
 
 train_index <- as.vector(NR$index)
 
-train_n <- frame87_clean_n[train_index, ]#-(1:1)]       # Zufallsvektor definiert die Trainingsdaten
-test_n <- frame87_clean_n[-train_index, ]#-(1:1)]       # ..das Komplement die Testdaten
+# training and test dataset with selected predictor variables
+train_n <- frame87_clean_n[train_index, ]      # Zufallsvektor definiert die Trainingsdaten
+test_n <- frame87_clean_n[-train_index, ]      # ..das Komplement die Testdaten
 
 # training and test dataset with all predictor variables for RF
-train <- frame87_clean[train_index, ]#-(1:1)]       # Zufallsvektor definiert die Trainingsdaten
-test  <- frame87_clean[-train_index, ]#-(1:1)]       # ..das Komplement die Testdaten
+train <- frame87_clean[train_index, ]          # Zufallsvektor definiert die Trainingsdaten
+test  <- frame87_clean[-train_index, ]         # ..das Komplement die Testdaten
 
 # training and test dataset with all predictor variables for Lasso
-train_o <- frame87_cleanoutl[train_index, ]#-(1:1)]       # Zufallsvektor definiert die Trainingsdaten
-test_o  <- frame87_cleanoutl[-train_index, ]#-(1:1)]       # ..das Komplement die Testdaten
+train_o <- frame87_cleanoutl[train_index, ]    # Zufallsvektor definiert die Trainingsdaten
+test_o  <- frame87_cleanoutl[-train_index, ]   # ..das Komplement die Testdaten
 
 cat("Number of Boards         :", as.character(count(distinct(frame87_clean, SID ))), "\n")
 
-cat("Dimension dataset        :", dim(frame87_clean), "1.pass", as.character(sum(frame87_clean$firstpass_scen)), as.character(round(sum(frame87_clean$firstpass_scen)/nrow(frame87_clean)*100,1)), "% ", "1.2.pass", as.character(sum(frame87_clean$firstsecondpass_scen)), as.character(round(sum(frame87_clean$firstsecondpass_scen )/nrow(frame87_clean)*100,1)), "%", "\n")
+cat("Dimension dataset        :", dim(frame87_clean), "1.pass", as.character(sum(frame87_clean$firstpass_scen)), as.character(round(sum(frame87_clean$firstpass_scen)/nrow(frame87_clean)*100,3)), "% ", "1.2.pass", as.character(sum(frame87_clean$firstsecondpass_scen)), as.character(round(sum(frame87_clean$firstsecondpass_scen )/nrow(frame87_clean)*100,3)), "%", "\n")
 
-cat("Dimension train partition:", dim(train), "1.pass", as.character(sum(train$firstpass_scen)), as.character(round(sum(train$firstpass_scen)/nrow(train)*100,1)), "% ", "1.2.pass", as.character(sum(train$firstsecondpass_scen)), as.character(round(sum(train$firstsecondpass_scen)/nrow(train)*100,1)), "%", "\n")
+cat("Dimension train partition:", dim(train), "1.pass", as.character(sum(train$firstpass_scen)), as.character(round(sum(train$firstpass_scen)/nrow(train)*100,3)), "% ", "1.2.pass", as.character(sum(train$firstsecondpass_scen)), as.character(round(sum(train$firstsecondpass_scen)/nrow(train)*100,3)), "%", "\n")
 
-cat("Dimension test partition : ", dim(test), "1.pass", as.character(sum(test$firstpass_scen)), as.character(round(sum(test$firstpass_scen)/nrow(test)*100,1)), "% ", "1.2.pass", as.character(sum(test$firstsecondpass_scen)), as.character(round(sum(test$firstsecondpass_scen)/nrow(test)*100,1)), "%", "\n")
+cat("Dimension test partition : ", dim(test), "1.pass", as.character(sum(test$firstpass_scen)), as.character(round(sum(test$firstpass_scen)/nrow(test)*100,3)), "% ", "1.2.pass", as.character(sum(test$firstsecondpass_scen)), as.character(round(sum(test$firstsecondpass_scen)/nrow(test)*100,3)), "%", "\n")
 ```
 
 # 5 AI
@@ -1449,19 +1508,21 @@ bei Varco reduced set klappt die Konvergenz
 stepwise regression feature selection
 ```{r, echo = FALSE, warning = FALSE}
 #train_n <- frame87_clean_n   # mal ohne split, nur model fit
+if (!file.exists(path = paste0(rel_fpath_output, "Log_mod.Rdata"))) {
+  null <- glm(SERGEBNIS ~1 , select(train_n, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass)), family=binomial(link="logit"))
 
-null <- glm(SERGEBNIS ~1 , select(train_n, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass)), family=binomial(link="logit"))
+  full <- glm(SERGEBNIS ~. , select(train_n, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass)), family=binomial(link="logit"))
 
-full <- glm(SERGEBNIS ~. , select(train_n, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass)), family=binomial(link="logit"))
-
-log_mod <- step(null, scope = list(upper=full), data=train_n, direction="both", trace = FALSE, steps = 50)
+  Log_mod <- step(null, scope = list(upper=full), data=train_n, direction="both", trace = FALSE, steps = 50)
+  save(Log_mod, file = paste0(rel_fpath_output, "Log_mod.Rdata"))
+} else {load(file = paste0(rel_fpath_output, "Log_mod.Rdata"))}  
 ```
 ```{r, echo = FALSE}
-summary(log_mod)
+summary(Log_mod)
 
 #calculate odds
 print ("Odds ratios:")
-round(exp(coefficients(log_mod)),6) #result is odds ratio
+round(exp(coefficients(Log_mod)),6) #result is odds ratio
 ```
 model evaluation
 
@@ -1469,13 +1530,13 @@ prediction
 ```{r, echo = FALSE}
 library(e1071)
 # Evaluation with test data set
-yhat <- predict.glm(log_mod, select(test_n, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass)))
+yhat <- predict.glm(Log_mod, select(test_n, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass)))
 
 #x <- runif(463, 0.0, 1.0) # test mit Zufallsfariable
 #yhat_label <- as.factor(prob_to_class(x, 0.105))
 # result is vector of mean values of the resprective nodes
 yhat_prob <- fn_norm_zo (yhat)        # normalize predicte values
-yhat_label <- as.factor(prob_to_class(yhat_prob, 0.5))
+yhat_label <- as.factor(prob_to_class(yhat_prob, 0.7))
 
 # Confusion matrix
 ytrue <- test_n$SERGEBNIS
@@ -1489,7 +1550,7 @@ ROC_Chart (yhat_prob, ytrue, "ROC Logistic Regression")
 location of predictors on the board (visual clustering)
 
 ```{r, echo = FALSE, message=FALSE, warning=FALSE}
-SMMNR_subtable <- SMMNR_table %>% filter(SARTIKELNR=="A5E02758387") %>% filter (SMMNR %in% names(log_mod$coefficients))
+SMMNR_subtable <- SMMNR_table %>% filter(SARTIKELNR=="A5E02758387") %>% filter (SMMNR %in% names(Log_mod$coefficients))
 
 ggplot(data = filter(SMMNR_subtable), mapping = aes(x = X_loc, y = Y_loc, colour = count_viol), size=1.0) +
     geom_point() +
@@ -1508,8 +1569,11 @@ Sitches partial trees so nr. of predictors could be covered.
 library(randomForest)
 library(caret)
 #train <- frame87_clean  # mal ohne split, nur model fit
-
-RF_mod <- randomForest(as.factor(SERGEBNIS) ~., select(train, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass)),importance=TRUE, ntree=500)
+if (!file.exists(path = paste0(rel_fpath_output, "RF_mod.Rdata"))) {
+  RF_mod <- randomForest(as.factor(SERGEBNIS) ~., select(train, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass)),importance=TRUE, ntree=500)
+  save(RF_mod, file = paste0(rel_fpath_output, "RF_mod.Rdata"))
+} else {load(file = paste0(rel_fpath_output, "RF_mod.Rdata"))}   
+  
 RF_mod
 plot(RF_mod)
 summary(RF_mod)
@@ -1540,12 +1604,14 @@ Reasoning for model seletion:
 * stepwizse approach supports selection of signifcant predictors
 ```{r, echo = FALSE, warning=FALSE}
 #train_n <- frame87_clean_n   # mal ohne split, nur model fit
+if (!file.exists(path = paste0(rel_fpath_output, "Log_mod2.Rdata"))) {
+  null <- glm(firstsecondpass_scen ~1 , select(train_n, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, BEFUND_clean, SERGEBNIS, pseudo, firstpass_scen, secondpass_scen, xpass)), family=binomial(link="logit"))
 
-null <- glm(firstsecondpass_scen ~1 , select(train_n, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, BEFUND_clean, SERGEBNIS, pseudo, firstpass_scen, secondpass_scen, xpass)), family=binomial(link="logit"))
+  full <- glm(firstsecondpass_scen ~. , select(train_n, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, BEFUND_clean, SERGEBNIS, pseudo, firstpass_scen, secondpass_scen, xpass)), family=binomial(link="logit"))
 
-full <- glm(firstsecondpass_scen ~. , select(train_n, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, BEFUND_clean, SERGEBNIS, pseudo, firstpass_scen, secondpass_scen, xpass)), family=binomial(link="logit"))
-
-log_mod2 <- step(null, scope = list(upper=full), data=train_n, direction="both", steps=50, trace=FALSE)
+  Log_mod2 <- step(null, scope = list(upper=full), data=train_n, direction="both", steps=50, trace=FALSE)
+  save(Log_mod2, file = paste0(rel_fpath_output, "Log_mod2.Rdata"))
+} else {load(file = paste0(rel_fpath_output, "Log_mod2.Rdata"))}
 ```
 
 model result shows extem Odds ratios!
@@ -1553,11 +1619,11 @@ often happens if there are only a very few numbers in one of the comparison grou
 a sign of low precision and hence a very weak power to detect a difference
 outliers and variables that are highly correlated with each other are primary reasons for a inflated Odds Ratios
 ```{r, echo = FALSE}
-summary(log_mod2)
+summary(Log_mod2)
 #calculate odds
 print ("Odds ratios:")
-round(exp(coefficients(log_mod2)),6) #result is odds ratio
-names(coefficients(log_mod2[]))
+round(exp(coefficients(Log_mod2)),6) #result is odds ratio
+names(coefficients(Log_mod2[]))
 ```
 model evaluation for logistic regression (AIC stepwise algorithm)                           |            
 number of observations 1550   
@@ -1595,11 +1661,11 @@ a sign of low precision and hence a very weak power to detect a difference; outl
 ```{r, echo = FALSE}
 library(e1071)
 # Evaluation with test data set
-yhat <- predict.glm(log_mod2, select(test_n, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, BEFUND_clean, SERGEBNIS ,pseudo, firstpass_scen, secondpass_scen, xpass)))
+yhat <- predict.glm(Log_mod2, select(test_n, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, BEFUND_clean, SERGEBNIS ,pseudo, firstpass_scen, secondpass_scen, xpass)))
 
 # result is vector of mean values of the resprective nodes
 yhat_prob <- fn_norm_zo(yhat)        # normalize predicte values
-yhat_label <- as.factor(prob_to_class(yhat_prob, 0.70))
+yhat_label <- as.factor(prob_to_class(yhat_prob, 0.60))
 
 # Confusion matrix
 ytrue <- test$firstsecondpass_scen
@@ -1613,7 +1679,7 @@ ROC_Chart (yhat_prob, ytrue, "ROC Logistic Regression")
 location of predictors on the board (visual clustering)
 
 ```{r, echo = FALSE, message=FALSE, warning=FALSE}
-SMMNR_subtable <- SMMNR_table %>% filter(SARTIKELNR=="A5E02758387") %>% filter (SMMNR %in% names(log_mod2$coefficients))
+SMMNR_subtable <- SMMNR_table %>% filter(SARTIKELNR=="A5E02758387") %>% filter (SMMNR %in% names(Log_mod2$coefficients))
 
 ggplot(data = filter(SMMNR_subtable), mapping = aes(x = X_loc, y = Y_loc, colour = count_viol), size=1.0) +
     geom_point() +
@@ -1640,7 +1706,15 @@ Reasoning for model seletion:
 ```{r, echo = FALSE}
 library(randomForest)
 
-RF_mod2 <- randomForest(x=select(train, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass)), y=as.factor(train$firstsecondpass_scen), cutoff=c(0.3,0.7), importance=TRUE, ntree=500)
+if (!file.exists(path = paste0(rel_fpath_output, "RF_mod2.Rdata"))) {
+
+  RF_mod2 <- randomForest(x=select(train, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS,
+                                             BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass)),
+                          y=as.factor(train$firstsecondpass_scen), cutoff=c(0.3,0.7), importance=TRUE, ntree=500)
+
+  save(RF_mod2, file = paste0(rel_fpath_output, "RF_mod2.Rdata"))
+} else {load(file = paste0(rel_fpath_output, "RF_mod2.Rdata"))}
+
 RF_mod2
 plot(RF_mod2)
 #summary(RF_mod2)
@@ -1663,7 +1737,7 @@ yhat <- predict(RF_mod2, select(test, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIK
 
 # result is vector of mean values of the resprective nodes
 yhat_prob <- fn_norm_zo(yhat)        # normalize predicte values
-yhat_label <- as.factor(prob_to_class(yhat_prob, 0.60))
+yhat_label <- as.factor(prob_to_class(yhat_prob, 0.6))
 
 # Confusion matrix
 ytrue <- test$firstsecondpass_scen
@@ -1705,16 +1779,12 @@ library(igraph)
 tree_func(RF_mod2, 300)
 ```
   
-10 fold crosss validation
+RF 10 fold crosss validation
 ```{r, echo = FALSE}
 library(caret)
 library(doSNOW)
 
-tenfold <- TRUE
-fivefold <- TRUE
-threefold <- TRUE
-
-if (tenfold) {
+if (!file.exists(path = paste0(rel_fpath_output, "cv.10.RF_mod.Rdata"))) {  
   set.seed(123456789)
   # stratification
   cv.10.folds <- createMultiFolds(train$firstsecondpass_scen, k = 10, times = 10)
@@ -1725,28 +1795,30 @@ if (tenfold) {
   cl <- makeCluster(6, type = "SOCK")
   registerDoSNOW(cl)
 
-  RF_mod3 <- train(select(train, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass)), as.factor(train$firstsecondpass_scen), method = "rf", tuneLength = 12, ntree = 400, trcontrol = ctrl.1)
+  cv.10.RF_mod <- train(select(train, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS,
+                                    BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass)),
+                   as.factor(train$firstsecondpass_scen), method = "rf", tuneLength = 15, ntree = 400, trcontrol = ctrl.1)
 
   stopCluster(cl)
-  
-  RF_mod3
-}
+  save(cv.10.RF_mod, file = paste0(rel_fpath_output , "cv.10.RF_mod.Rdata"))
+} else {load(file = paste0(rel_fpath_output, "cv.10.RF_mod.Rdata"))}  
 ```
 
 ```{r, echo = FALSE}
-plot(RF_mod3)  
+cv.10.RF_mod
+plot(cv.10.RF_mod)  
 
-#summary(RF_mod3)
-print(varImp(RF_mod3), top = 30)
-plot(varImp(RF_mod3), top = 30)
+#summary(cv.10.RF_mod)
+print(varImp(cv.10.RF_mod), top = 30)
+plot(varImp(cv.10.RF_mod), top = 30)
    
 library(e1071)
 # Evaluation with test data set
-yhat <- predict(RF_mod3, select(test, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass)), type="prob")[,"1"] # take secend column of probabilities
+yhat <- predict(cv.10.RF_mod, select(test, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass)), type="prob")[,"1"] # take secend column of probabilities
 
-  # result is vector of mean values of the resprective nodes
+# result is vector of mean values of the resprective nodes
 yhat_prob <- fn_norm_zo(yhat)        # normalize predicte values
-yhat_label <- as.factor(prob_to_class(yhat_prob, 0.60))
+yhat_label <- as.factor(prob_to_class(yhat_prob, 0.6))
 
 # Confusion matrix
 ytrue <- test$firstsecondpass_scen
@@ -1758,9 +1830,9 @@ Lift_Chart (yhat_prob, ytrue, "Lift Random Forest 10-f", "black")
 ROC_Chart (yhat_prob, ytrue, "ROC Random Forest 10-f")
 ```
   
-5 fold crosss validation
+RF 5 fold crosss validation
 ```{r, echo = FALSE}
-if (fivefold) {
+if (!file.exists(path = paste0(rel_fpath_output, "cv.5.RF_mod.Rdata"))) {  
   set.seed(123456789)
   # stratification
   cv.5.folds <- createMultiFolds(train$firstsecondpass_scen, k = 5, times = 10)
@@ -1771,27 +1843,30 @@ if (fivefold) {
   cl <- makeCluster(6, type = "SOCK")
   registerDoSNOW(cl)
 
-  RF_mod4 <- train(select(train, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass)), as.factor(train$firstsecondpass_scen), method = "rf", tuneLength = 12, ntree = 400, trcontrol = ctrl.2 )
+  cv.5.RF_mod <- train(select(train, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS,
+                                    BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass)),
+                   as.factor(train$firstsecondpass_scen), method = "rf", tuneLength = 15, ntree = 400, trcontrol = ctrl.2 )
 
   stopCluster(cl)
-  RF_mod4
-}
+  save(cv.5.RF_mod, file = paste0(rel_fpath_output , "cv.5.RF_mod.Rdata"))
+} else {load(file = paste0(rel_fpath_output, "cv.5.RF_mod.Rdata"))} 
 ```
 
 ```{r, echo = FALSE} 
-plot(RF_mod4)
+cv.5.RF_mod
+plot(cv.5.RF_mod)
 
-#summary(RF_mod4)
-print(varImp(RF_mod4), top = 30)
-plot(varImp(RF_mod4), top = 30)
+#summary(cv.5.RF_mod)
+print(varImp(cv.5.RF_mod), top = 30)
+plot(varImp(cv.5.RF_mod), top = 30)
 
 library(e1071)
 # Evaluation with test data set
-yhat <- predict(RF_mod4, select(test, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass)), type="prob")[,"1"] # take secend column of probabilities
+yhat <- predict(cv.5.RF_mod, select(test, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass)), type="prob")[,"1"] # take secend column of probabilities
 
 # result is vector of mean values of the resprective nodes
 yhat_prob <- fn_norm_zo(yhat)        # normalize predicte values
-yhat_label <- as.factor(prob_to_class(yhat_prob, 0.60))
+yhat_label <- as.factor(prob_to_class(yhat_prob, 0.6))
 
 # Confusion matrix
 ytrue <- test$firstsecondpass_scen
@@ -1800,13 +1875,12 @@ caret::confusionMatrix(yhat_label, as.factor(ytrue), positive="1")
 # Lift / ROC Chart for test data
 par(mfrow=c(1,2))
 Lift_Chart (yhat_prob, ytrue, "Lift Random Forest 5-f", "black")
-rOC_Chart (yhat_prob, ytrue, "ROC Random Forest 5-f")
-
+ROC_Chart (yhat_prob, ytrue, "ROC Random Forest 5-f")
 ```
   
-3 fold crosss validation
+RF 3 fold crosss validation
 ```{r, echo = FALSE}
-if (threefold) {
+if (!file.exists(path = paste0(rel_fpath_output, "cv.3.RF_mod.Rdata"))) {  
   set.seed(123456789)
   # stratification
   cv.3.folds <- createMultiFolds(train$firstsecondpass_scen, k = 3, times = 10)
@@ -1817,27 +1891,30 @@ if (threefold) {
   cl <- makeCluster(6, type = "SOCK")
   registerDoSNOW(cl)
 
-  RF_mod5 <- train(select(train, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass)), as.factor(train$firstsecondpass_scen), method = "rf", tuneLength = 12, ntree = 400, trcontrol = ctrl.3 )
+  cv.3.RF_mod <- train(select(train, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS,
+                                    BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass)),
+                   as.factor(train$firstsecondpass_scen), method = "rf", tuneLength = 15, ntree = 400, trcontrol = ctrl.3 )
 
   stopCluster(cl)
-  RF_mod5
-}
+  save(cv.3.RF_mod, file = paste0(rel_fpath_output , "cv.3.RF_mod.Rdata"))
+} else {load(file = paste0(rel_fpath_output, "cv.3.RF_mod.Rdata"))} 
 ```
 
 ```{r, echo = FALSE} 
-plot(RF_mod5)  
+cv.3.RF_mod
+plot(cv.3.RF_mod)  
 
-#summary(RF_mod5)
-print(varImp(RF_mod5), top = 30)
-plot(varImp(RF_mod5), top = 30)
+#summary(cv.3.RF_mod)
+print(varImp(cv.3.RF_mod), top = 30)
+plot(varImp(cv.3.RF_mod), top = 30)
    
 library(e1071)
 # Evaluation with test data set
-yhat <- predict(RF_mod5, select(test, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass)), type="prob")[,"1"] # take secend column of probabilities
+yhat <- predict(cv.3.RF_mod, select(test, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass)), type="prob")[,"1"] # take secend column of probabilities
 
 # result is vector of mean values of the resprective nodes
 yhat_prob <- fn_norm_zo(yhat)        # normalize predicte values
-yhat_label <- as.factor(prob_to_class(yhat_prob, 0.60))
+yhat_label <- as.factor(prob_to_class(yhat_prob, 0.6))
 
 # Confusion matrix
 ytrue <- test$firstsecondpass_scen
@@ -1847,7 +1924,6 @@ caret::confusionMatrix(yhat_label, as.factor(ytrue), positive="1")
 par(mfrow=c(1,2))
 Lift_Chart (yhat_prob, ytrue, "Lift Random Forest 3-f", "black")
 ROC_Chart (yhat_prob, ytrue, "ROC Random Forest 3-f")
-
 ```
 
 model evaluation fro Random Forest 
@@ -1884,35 +1960,34 @@ Reasoning for model seletion:
 * performs both variable selection and regularization in order to enhance the prediction accuracy and interpretability
 * tries to avoid overfitting penalizing large coefficients
 * can shrink some of the coefficients to exactly zero
-http://ricardoscr.github.io/how-to-use-ridge-and-lasso-in-r.html
-https://stats.stackexchange.com/questions/72251/an-example-lasso-regression-using-glmnet-for-binary-outcome
-
-further investigation with Adaptive Lasso:
-* Adaptive Lasso, as a regularization method, avoids overfitting penalizing large coefficients
-
-http://ricardoscr.github.io/how-to-adaptive-lasso.html
 
 ```{r, echo = FALSE, message=FALSE, warning=FALSE}
+#http://ricardoscr.github.io/how-to-use-ridge-and-lasso-in-r.html
+#https://stats.stackexchange.com/questions/72251/an-example-lasso-regression-using-glmnet-for-binary-outcome
+
 library(glmnet)
 library(doSNOW)
 
-Adaptive_Lasso <-TRUE
-tenfold <-TRUE
-fivefold <- TRUE
-threefold <- TRUE
 set.seed (123456789)
 
-cl <- makeCluster(4, type = "SOCK")
-registerDoSNOW(cl)
-## Lasso
-## Note alpha=1 for lasso only and can blend with ridge penalty down to alpha=0 ridge only.
-cv.lasso_mod <- cv.glmnet(as.matrix(select(train_o, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass))), train_o$firstsecondpass_scen, alpha=1, parallel=TRUE, standardize=TRUE, type.measure='auc')
+if (!file.exists(path = paste0(rel_fpath_output, "cv.lasso_mod.Rdata"))) {  
+  cl <- makeCluster(4, type = "SOCK")
+  registerDoSNOW(cl)
+  ## Lasso
+  ## Note alpha=1 for lasso only and can blend with ridge penalty down to alpha=0 ridge only.
+  
+  cv.lasso_mod <- cv.glmnet(as.matrix(select(train_o, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS,
+                                                         BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass))),
+                            train_o$firstsecondpass_scen, alpha=1, parallel=TRUE, standardize=TRUE, type.measure='auc')
+  
+  save(cv.lasso_mod, file = paste0(rel_fpath_output , "cv.lasso_mod.Rdata"))
+} else {load(file = paste0(rel_fpath_output, "cv.lasso_mod.Rdata"))}
 
 library(e1071)
 # Evaluation with test data set
 yhat <- predict(cv.lasso_mod, as.matrix(select(test_o, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass))), type = "class", s = "lambda.min")
 yhat_prob <- fn_norm_zo(yhat)        # normalize predicte values
-yhat_label <- as.factor(prob_to_class(yhat_prob, 0.6))
+yhat_label <- as.factor(prob_to_class(yhat_prob, 0.5))
 
 # Confusion matrix
 ytrue <- test_o$firstsecondpass_scen
@@ -1922,28 +1997,47 @@ caret::confusionMatrix(yhat_label, as.factor(ytrue), positive="1")
 par(mfrow=c(1,2))
 Lift_Chart (as.vector(yhat_prob), ytrue, "Lift Lasso", "black")
 ROC_Chart (yhat_prob, ytrue, "ROC Lasso")
+```
 
-if (Adaptive_Lasso) {
-  ## Ridge Regression to create the Adaptive Weights Vector
-  cl <- makeCluster(4, type = "SOCK")
-  registerDoSNOW(cl)
+adaptive Lasso
+```{r, echo = FALSE, message=FALSE, warning=FALSE}
+#* Adaptive Lasso, as a regularization method, avoids overfitting penalizing large coefficients
+#http://ricardoscr.github.io/how-to-adaptive-lasso.html
+
+library(glmnet)
+library(doSNOW)
+
+set.seed (123456789)
+
+## Ridge Regression to create the Adaptive Weights Vector
+cl <- makeCluster(4, type = "SOCK")
+registerDoSNOW(cl)
   
-  cv.ridge <- cv.glmnet(as.matrix(select(train_o, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass))), train_o$firstsecondpass_scen,  alpha=0, parallel=TRUE, standardize=TRUE)
+cv.ridge <- cv.glmnet(as.matrix(select(train_o, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass))), train_o$firstsecondpass_scen,  alpha=0, parallel=TRUE, standardize=TRUE)
   
-  w3 <- 1/abs(matrix(coef(cv.ridge, s=cv.ridge$lambda.min)[, 1][2:(ncol(select(train_o, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass)))+1)] ))^1 ## Using gamma = 1
+w3 <- 1/abs(matrix(coef(cv.ridge, s=cv.ridge$lambda.min)[, 1][2:(ncol(select(train_o, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass)))+1)] ))^1 ## Using gamma = 1
   w3[w3[,1] == Inf] <- 999999999 ## Replacing values estimated as Infinite for 999999999
 
-  ## Adaptive Lasso
-  if (tenfold) {
-    cv.lasso_mod_2 <- cv.glmnet(as.matrix(select(train_o, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass))), train_o$firstsecondpass_scen, alpha=1, parallel=TRUE, standardize=TRUE, type.measure='auc', penalty.factor=w3, nfolds = 10)
-  }
-  if (fivefold) {
-    cv.lasso_mod_3 <- cv.glmnet(as.matrix(select(train_o, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass))), train_o$firstsecondpass_scen, alpha=1, parallel=TRUE, standardize=TRUE, type.measure='auc', penalty.factor=w3, nfolds = 5)
-  }  
-  if (threefold) {
-    cv.lasso_mod_4 <- cv.glmnet(as.matrix(select(train_o, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass))), train_o$firstsecondpass_scen, alpha=1, parallel=TRUE, standardize=TRUE, type.measure='auc', penalty.factor=w3, nfolds = 3)
-  }   
-}
+## Adaptive Lasso
+if (!file.exists(path = paste0(rel_fpath_output, "cv.10.a_lasso_mod.Rdata"))) {
+    
+  cv.10.a_lasso_mod <- cv.glmnet(as.matrix(select(train_o, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass))), train_o$firstsecondpass_scen, alpha=1, parallel=TRUE, standardize=TRUE, type.measure='auc', penalty.factor=w3, nfolds = 10)
+    
+  save(cv.10.a_lasso_mod, file = paste0(rel_fpath_output , "cv.10.a_lasso_mod.Rdata"))
+} else {load(file = paste0(rel_fpath_output, "cv.10.a_lasso_mod.Rdata"))}    
+  
+if (!file.exists(path = paste0(rel_fpath_output, "cv.5.a_lasso_mod.Rdata"))) {
+  cv.5.a_lasso_mod <- cv.glmnet(as.matrix(select(train_o, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass))), train_o$firstsecondpass_scen, alpha=1, parallel=TRUE, standardize=TRUE, type.measure='auc', penalty.factor=w3, nfolds = 5)
+    
+  save(cv.5.a_lasso_mod, file = paste0(rel_fpath_output , "cv.5.a_lasso_mod.Rdata"))    
+} else {load(file = paste0(rel_fpath_output, "cv.5.a_lasso_mod.Rdata"))}  
+  
+if (!file.exists(path = paste0(rel_fpath_output, "cv.3.a_lasso_mod.Rdata"))) {
+  cv.3.a_lasso_mod <- cv.glmnet(as.matrix(select(train_o, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass))), train_o$firstsecondpass_scen, alpha=1, parallel=TRUE, standardize=TRUE, type.measure='auc', penalty.factor=w3, nfolds = 3)
+    
+  save(cv.3.a_lasso_mod, file = paste0(rel_fpath_output , "cv.3.a_lasso_mod.Rdata"))
+} else {load(file = paste0(rel_fpath_output, "cv.3.a_lasso_mod.Rdata"))}
+
 stopCluster(cl) 
 ```
 minimum lambda
@@ -1953,14 +2047,14 @@ minimum lambda
 cat("Minimum lamda no cv     :", cv.lasso_mod$lambda.min, "\n")
 plot(cv.lasso_mod, xvar="lambda", label=TRUE)
 title("Lasso no cv", line = -1)
-cat("Minimum lamda 10 fold cv:", cv.lasso_mod_2$lambda.min, "\n")
-plot(cv.lasso_mod_2, xvar="lambda", label=TRUE)
+cat("Minimum lamda 10 fold cv:", cv.10.a_lasso_mod$lambda.min, "\n")
+plot(cv.10.a_lasso_mod, xvar="lambda", label=TRUE)
 title("Lasso cv 10", line = -1)
-cat("Minimum lamda  5 fold cv:", cv.lasso_mod_3$lambda.min, "\n")
-plot(cv.lasso_mod_3, xvar="lambda", label=TRUE)
+cat("Minimum lamda  5 fold cv:", cv.5.a_lasso_mod$lambda.min, "\n")
+plot(cv.5.a_lasso_mod, xvar="lambda", label=TRUE)
 title("Lasso cv 5", line = -1)
-cat("Minimum lamda  3 fold cv:", cv.lasso_mod_4$lambda.min, "\n")
-plot(cv.lasso_mod_4, xvar="lambda", label=TRUE)
+cat("Minimum lamda  3 fold cv:", cv.3.a_lasso_mod$lambda.min, "\n")
+plot(cv.3.a_lasso_mod, xvar="lambda", label=TRUE)
 title("Lasso cv 3", line = -1)
 ```
 top 30 postive / negative coeffients by magnitude
@@ -2024,7 +2118,7 @@ Adaptive Lasso reduces the number of coeffiencts to less than 100-200 whereas La
 ```{r, echo = FALSE, message=FALSE, warning=FALSE}
 library(e1071)
 # Evaluation with test data set
-yhat <- predict(cv.lasso_mod_2, as.matrix(select(test_o, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass))), type = "class", s = "lambda.min")
+yhat <- predict(cv.10.a_lasso_mod, as.matrix(select(test_o, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass))), type = "class", s = "lambda.min")
 yhat_prob <- fn_norm_zo(yhat)        # normalize predicte values
 yhat_label <- as.factor(prob_to_class(yhat_prob, 0.5))
 
@@ -2038,11 +2132,11 @@ Lift_Chart (as.vector(yhat_prob), ytrue, "Lift Lasso 10-f", "black")
 ROC_Chart (yhat_prob, ytrue, "ROC Lasso 10-f")
 ```
 
-5 fold cross validation
+Adaptive Lasso 5 fold cross validation
 ```{r, echo = FALSE, message=FALSE, warning=FALSE}
 library(e1071)
 # Evaluation with test data set
-yhat <- predict(cv.lasso_mod_3, as.matrix(select(test_o, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass))), type = "class", s = "lambda.min")
+yhat <- predict(cv.5.a_lasso_mod, as.matrix(select(test_o, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass))), type = "class", s = "lambda.min")
 yhat_prob <- fn_norm_zo(yhat)        # normalize predicte values
 yhat_label <- as.factor(prob_to_class(yhat_prob, 0.5))
 
@@ -2060,7 +2154,7 @@ ROC_Chart (yhat_prob, ytrue, "ROC Lasso 5-f")
 ```{r, echo = FALSE, message=FALSE, warning=FALSE}
 library(e1071)
 # Evaluation with test data set
-yhat <- predict(cv.lasso_mod_4, as.matrix(select(test_o, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass))), type = "class", s = "lambda.min")
+yhat <- predict(cv.3.a_lasso_mod, as.matrix(select(test_o, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass))), type = "class", s = "lambda.min")
 yhat_prob <- fn_norm_zo(yhat)        # normalize predicte values
 yhat_label <- as.factor(prob_to_class(yhat_prob, 0.5))
 
@@ -2073,8 +2167,8 @@ par(mfrow=c(1,2))
 Lift_Chart (as.vector(yhat_prob), ytrue, "Lift Lasso 3-f", "black")
 ROC_Chart (yhat_prob, ytrue, "ROC Lasso 3-f")
 ```
-location of predictors on the board (visual clustering)
 
+location of predictors on the board (visual clustering)
 ```{r, echo = FALSE, message=FALSE, warning=FALSE}
 SMMNR_subtable <- SMMNR_table %>% filter(SARTIKELNR=="A5E02758387") %>% filter (SMMNR %in% top_Lasso_coeff$SMMNR[1:15] | SMMNR %in% top_Lasso_coeff$SMMNR [(nrow(top_Lasso_coeff)-15):nrow(top_Lasso_coeff)]) %>% group_by(SMMNR) %>% summarise(count_viol = sum(count_viol, na.rm=TRUE), X_loc = unique(X_loc), Y_loc = unique(Y_loc), SMMNR_clean = unique(SMMNR_clean), placementSide = unique(placementSide))
 
@@ -2118,7 +2212,37 @@ caret::confusionMatrix(yhat_label, as.factor(ytrue), positive="1")
 
 ```{r, echo = FALSE, message=FALSE, warning=FALSE}
 library(gbm)
-gbt_mod <- gbm(as.factor(firstsecondpass_scen) ~. , data=select(train, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, xpass)), distribution = "gaussian", n.trees = 500)
+library(doSNOW)
+
+if (!file.exists(path = paste0(rel_fpath_output, "cv.5.gbt_mod.Rdata"))) {
+  gbt_mod <- gbm(as.factor(firstsecondpass_scen) ~., data=select(train, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS, BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, xpass)), distribution = "gaussian", n.trees = 500)
+  set.seed(123456789)
+  # stratification
+  #cv.5.folds <- createMultiFolds(train$firstsecondpass_scen, k = 5, times = 10)
+  # setup a caret's training control object
+  ctrl.2 <- trainControl(method = "repeatedcv", number = 3, repeats = 1)#,
+                      # index = cv.5.folds)
+  #setup doSNOW
+  #cl <- makeCluster(6, type = "SOCK")
+  #registerDoSNOW(cl)
+  #registerDoSEQ()
+  x <- select(train_n, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS,
+                                    BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass))
+    
+  cv.5.gbt_mod <- train(x,
+                   as.factor(train_n$firstsecondpass_scen), method = "gbm", distribution = "gaussian", n.trees = 500)#, trcontrol = ctrl.2)
+  
+#  stopCluster(cl)
+  #registerDoSEQ()
+
+#  cv.10.RF_mod <- train(select(train, -c(NTHID, SFILENAME, DTINSERT, SID, SARTIKELNR, DTDATUM, SPLATZNR, SERGEBNIS,
+#                                    BEFUND_clean, pseudo, firstpass_scen, secondpass_scen, firstsecondpass_scen, xpass)),
+#                   as.factor(train$firstsecondpass_scen), method = "rf", tuneLength = 15, ntree = 400, trcontrol = ctrl.1)
+    
+  save(cv.5.gbt_mod, file = paste0(rel_fpath_output , "cv.5.gbt_mod.Rdata"))
+} else {load(file = paste0(rel_fpath_output, "cv.5.gbt_mod.Rdata"))}  
+
+gbt_mod
 #summary(gbt_mod)
 plot(gbt_mod,i="R524")
 ```
